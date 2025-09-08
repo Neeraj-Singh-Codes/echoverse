@@ -31,6 +31,45 @@ const Mainpage = () => {
     }
   };
 
+  const speaking = (text: string) => {
+    if ("speechSynthesis" in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      console.error("Speech Synthesis not supported in this browser.");
+    }
+  };
+
+  const handleQuery = (data) => {
+    const { type, userInput, response } = data;
+    speaking(response);
+
+    if (type === "google-search") {
+      const query = encodeURIComponent(userInput);
+      window.open(`https://www.google.com/search?=${query}`, "_blank");
+    }
+    if (type === "calculator-open") {
+      window.open(`https://www.google.com/search?q=calculator`, "_blank");
+    }
+    if (type === "instagram-open") {
+      window.open(`https://www.instagram.com`, "_blank");
+    }
+    if (type === "calculator-open") {
+      window.open(`https://www.facebook.com`, "_blank");
+    }
+
+    if (type === "weather-show") {
+      window.open(`https://www.google.com/search?q=weather`, "_blank");
+    }
+    if (type === "youtube-search" || type === "youtube-play") {
+      const query = encodeURIComponent(userInput);
+      window.open(
+        `https://www.youtube.com/results?search_query=${query}`,
+        "_blank"
+      );
+    }
+  };
+
   useEffect(() => {
     // Fetching User here
     const fetchUser = async () => {
@@ -66,7 +105,12 @@ const Mainpage = () => {
       if (transcript.toLowerCase().includes(user.assistantName.toLowerCase())) {
         const data = await getGeminiResponse(transcript);
         console.log(data);
+        handleQuery(data);
       }
+    };
+
+    recognition.onerror = (e) => {
+      console.log(e);
     };
 
     recognition.start();

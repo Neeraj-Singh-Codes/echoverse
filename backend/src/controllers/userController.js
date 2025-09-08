@@ -78,7 +78,7 @@ export const askToAssistant = async (req, res) => {
       case "calculator-open":
       case "instagram-open":
       case "facebook-open":
-      case "weatehr-show":
+      case "weather-show":
         return res.json({
           type,
           userInput: gemResult.userInput,
