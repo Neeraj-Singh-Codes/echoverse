@@ -1,2 +1,33 @@
 @import "tailwindcss";
 @plugin "daisyui";
+.fancy-btn {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  border-radius: 9999px; /* fully rounded */
+  cursor: pointer;
+  transition: all 0.6s cubic-bezier(0.165, 0.84, 0.44, 1);
+  z-index: 1;
+}
+
+.fancy-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 100%;
+  background: #6c5ce7; /* purple fill */
+  transition: all 0.6s cubic-bezier(0.165, 0.84, 0.44, 1);
+  z-index: -1;
+}
+
+.fancy-btn:hover::before {
+  width: 100%;
+}
+
+.fancy-btn:hover {
+  color: #0a0a14; /* text turns dark */
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.25);
+}

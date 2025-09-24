@@ -1,24 +1,49 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
-import dynamic from "next/dynamic";
 
-const Spline = dynamic(() => import("@splinetool/react-spline"), {
-  ssr: false,
-});
+import ModelOne, { modelOneSpeak } from "../components/models/ModelOne";
+import ModelTwo, { modelTwoSpeak } from "../components/models/ModelTwo";
+import ModelThree, { modelThreeSpeak } from "../components/models/Modelthree";
+import Chat from "../components/Chat";
 
-const avatarToSpline: Record<string, string> = {
-  "/model1.jpg": "https://prod.spline.design/aMiMaHmriiulsLTF/scene.splinecode",
-  "/echoverse-avatar.jpg":
-    "https://prod.spline.design/3R30UV0N-hg8sKge/scene.splinecode",
-  "/model3.jpg": "https://prod.spline.design/INQWwQTCOLrGcrOD/scene.splinecode",
+import { MessageSquareText, Settings } from "lucide-react";
+
+// levenshtein + similarity stay same...
+const levenshtein = (a: string, b: string) => {
+  const dp = Array.from({ length: a.length + 1 }, () =>
+    Array(b.length + 1).fill(0)
+  );
+  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] === b[j - 1]) dp[i][j] = dp[i - 1][j - 1];
+      else
+        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[a.length][b.length];
 };
+const similarity = (a: string, b: string) =>
+  1 - levenshtein(a, b) / Math.max(a.length, b.length);
 
 const Mainpage = () => {
   const [user, setUser] = useState<any>(null);
+  const [listening, setListening] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
-  const getGeminiResponse = async (command: any) => {
+  const isSpeakingRef = useRef(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const isRecognizingRef = useRef(false);
+  const lastSpokenRef = useRef<string>("");
+  const restartTimeout = useRef<NodeJS.Timeout | null>(null);
+  const errorCountRef = useRef(0);
+
+  // Talk With AI
+  const getGeminiResponse = async (command: string) => {
     try {
       const result = await axios.post(
         "http://localhost:8000/api/user/askToAssistant",
@@ -31,47 +56,44 @@ const Mainpage = () => {
     }
   };
 
-  const speaking = (text: string) => {
-    if ("speechSynthesis" in window) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      window.speechSynthesis.speak(utterance);
-    } else {
-      console.error("Speech Synthesis not supported in this browser.");
-    }
-  };
-
-  const handleQuery = (data) => {
-    const { type, userInput, response } = data;
-    speaking(response);
-
-    if (type === "google-search") {
-      const query = encodeURIComponent(userInput);
-      window.open(`https://www.google.com/search?=${query}`, "_blank");
-    }
-    if (type === "calculator-open") {
-      window.open(`https://www.google.com/search?q=calculator`, "_blank");
-    }
-    if (type === "instagram-open") {
-      window.open(`https://www.instagram.com`, "_blank");
-    }
-    if (type === "calculator-open") {
-      window.open(`https://www.facebook.com`, "_blank");
-    }
-
-    if (type === "weather-show") {
-      window.open(`https://www.google.com/search?q=weather`, "_blank");
-    }
-    if (type === "youtube-search" || type === "youtube-play") {
-      const query = encodeURIComponent(userInput);
-      window.open(
-        `https://www.youtube.com/results?search_query=${query}`,
-        "_blank"
+  // Chat with AI
+  const sendMessageToAI = async (message: string): Promise<string> => {
+    try {
+      const res = await axios.post(
+        "http://localhost:8000/api/user/askToAssistant",
+        { command: message },
+        { withCredentials: true }
       );
+      return res.data.response || "No response";
+    } catch (err) {
+      console.error(err);
+      return "Error talking to AI.";
     }
   };
 
+  // ---------- Safe Recognition ----------
+  const safeRecognition = (delay = 1000) => {
+    if (restartTimeout.current) clearTimeout(restartTimeout.current);
+    restartTimeout.current = setTimeout(() => {
+      if (
+        !isSpeakingRef.current &&
+        !isRecognizingRef.current &&
+        recognitionRef.current
+      ) {
+        try {
+          recognitionRef.current.start();
+          console.log("[Recognition] Restart");
+        } catch (error: any) {
+          if (error.name !== "InvalidStateError") {
+            console.error("[Recognition] start failed:", error);
+          }
+        }
+      }
+    }, delay);
+  };
+
+  // ---------- Fetch User ----------
   useEffect(() => {
-    // Fetching User here
     const fetchUser = async () => {
       try {
         const res = await axios.get("http://localhost:8000/api/user/current", {
@@ -79,70 +101,542 @@ const Mainpage = () => {
         });
         setUser(res.data);
       } catch (err: any) {
-        console.error(
-          "Error fetching user:",
-          err.response?.data || err.message
-        );
+        console.error(err.response?.data || err.message);
       }
     };
     fetchUser();
   }, []);
 
+  // ---------- Speech Recognition ----------
   useEffect(() => {
-    if (!user) return; // wait until user is fetched
+    if (!user) return;
 
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    const recognition = new SpeechRecognition();
+    const recognition: SpeechRecognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.lang = "en-US";
+    recognitionRef.current = recognition;
 
-    recognition.onresult = async (e) => {
-      const transcript = e.results[e.results.length - 1][0].transcript.trim();
-      console.log(transcript);
+    (window as any).speechRecognitionInstance = recognition;
 
-      if (transcript.toLowerCase().includes(user.assistantName.toLowerCase())) {
+    recognition.onstart = () => {
+      console.log("[Recognition] Started");
+      isRecognizingRef.current = true;
+      setListening(true);
+    };
+
+    recognition.onend = () => {
+      console.log("[Recognition] Ended");
+      isRecognizingRef.current = false;
+      setListening(false);
+
+      // if (!isSpeakingRef.current) safeRecognition(800);
+
+      // ❌ don't auto-restart here {trying these}
+      if (!isSpeakingRef.current) {
+        safeRecognition(800);
+      } else {
+        console.log("[Recognition] Skipped restart (still speaking)");
+      }
+    };
+
+    recognition.onerror = (e: any) => {
+      console.warn("[Recognition] Error:", e.error);
+      isRecognizingRef.current = false;
+      setListening(false);
+      if (e.error !== "aborted" && !isSpeakingRef.current) {
+        errorCountRef.current++;
+        const backoff = Math.min(5000, 1000 * errorCountRef.current);
+        safeRecognition(backoff);
+      }
+    };
+
+    recognition.onresult = async (e: any) => {
+      // ✅ Ignore all recognition results while speaking
+      if (isSpeakingRef.current) {
+        console.log("[Recognition] Ignored because speaking");
+        return;
+      }
+
+      const transcript = e.results[e.results.length - 1][0].transcript
+        .trim()
+        .toLowerCase();
+      console.log("[Recognition] Heard:", transcript);
+
+      if (
+        lastSpokenRef.current &&
+        similarity(transcript, lastSpokenRef.current) > 0.7
+      ) {
+        console.log("[Recognition] Ignored echo");
+        return;
+      }
+
+      const hotword = new RegExp(`\\b${user.assistantName.toLowerCase()}\\b`);
+      if (hotword.test(transcript)) {
+        recognition.stop();
+        isRecognizingRef.current = false;
+        setListening(false);
+
         const data = await getGeminiResponse(transcript);
-        console.log(data);
+        console.log("[Assistant Response]:", data);
         handleQuery(data);
       }
     };
 
-    recognition.onerror = (e) => {
-      console.log(e);
+    const fallBackCheck = setInterval(() => {
+      if (!isSpeakingRef.current && !isRecognizingRef.current) {
+        safeRecognition(500);
+      }
+    }, 10000);
+
+    safeRecognition();
+
+    return () => {
+      recognition.stop();
+      setListening(false);
+      isRecognizingRef.current = false;
+      if (restartTimeout.current) clearTimeout(restartTimeout.current);
+      clearInterval(fallBackCheck);
     };
+  }, [user]);
 
-    recognition.start();
+  // ---------- Handle Commands ----------
+  const handleQuery = (data: any) => {
+    const { type = "general", userInput = "", response = "" } = data || {};
+    lastSpokenRef.current = response.toLowerCase();
 
-    return () => recognition.stop(); // cleanup on unmount
-  }, [user]); // <--- dependency ensures effect runs after user is loaded
+    // Model-specific speak
+    switch (user.assistantImage) {
+      case "/model1.jpg":
+        modelOneSpeak(response, isSpeakingRef, () => safeRecognition());
+        break;
+      case "/echoverse-avatar.jpg":
+        modelTwoSpeak(response, isSpeakingRef, () => safeRecognition());
+        break;
+      case "/model3.jpg":
+        modelThreeSpeak(response, isSpeakingRef, () => safeRecognition());
+        break;
+    }
 
-  if (!user) return <p>Loading...</p>;
+    // Example: open URLs
+    switch (type) {
+      case "google-search":
+        window.open(
+          `https://www.google.com/search?q=${encodeURIComponent(userInput)}`,
+          "_blank"
+        );
+        break;
+      case "calculator-open":
+        window.open(`https://www.google.com/search?q=calculator`, "_blank");
+        break;
+      case "instagram-open":
+        window.open(`https://www.instagram.com`, "_blank");
+        break;
+      case "facebook-open":
+        window.open(`https://www.facebook.com`, "_blank");
+        break;
+      case "weather-show":
+        window.open(`https://www.google.com/search?q=weather`, "_blank");
+        break;
+      case "youtube-search":
+      case "youtube-play":
+        window.open(
+          `https://www.youtube.com/results?search_query=${encodeURIComponent(
+            userInput
+          )}`,
+          "_blank"
+        );
+        break;
+    }
+  };
 
-  const splineUrl = avatarToSpline[user.assistantImage];
+  // ---------- Render Model ----------
+  const renderModel = () => {
+    switch (user.assistantImage) {
+      case "/model1.jpg":
+        return (
+          <ModelOne
+            isSpeakingRef={isSpeakingRef}
+            startRecognition={() => safeRecognition()}
+          />
+        );
+      case "/echoverse-avatar.jpg":
+        return (
+          <ModelTwo
+            isSpeakingRef={isSpeakingRef}
+            startRecognition={() => safeRecognition()}
+          />
+        );
+      case "/model3.jpg":
+        return (
+          <ModelThree
+            isSpeakingRef={isSpeakingRef}
+            startRecognition={() => safeRecognition()}
+          />
+        );
+      default:
+        return <p className="text-gray-500 mt-4">No assistant model set</p>;
+    }
+  };
+
+  if (!user) return <p className="text-center text-white">Loading...</p>;
 
   return (
-    <div className="h-screen w-full flex flex-col items-center justify-center bg-black">
-      <h1 className="text-4xl font-bold text-white mt-15">
-        Welcome, {user.assistantName || "Assistant"}!
-      </h1>
-
-      {splineUrl ? (
-        <div className="w-full h-fit mt-6 ">
-          <Spline scene={splineUrl} />
+    <div className="h-screen w-full flex flex-col bg-gradient-to-b from-gray-950 via-black to-gray-900">
+      {/* Navbar */}
+      <header className="flex justify-between items-center px-8 py-4 border-b border-gray-800">
+        <h1 className="text-xl font-bold text-white tracking-wide">
+          EchoVerse
+        </h1>
+        <div className="flex gap-6 mr-2">
+          <MessageSquareText
+            className="size-7 cursor-pointer"
+            onClick={() => setChatOpen(true)}
+          />{" "}
+          <Settings className="size-7" />
         </div>
-      ) : user.assistantImage ? (
-        <img
-          src={user.assistantImage}
-          alt="Assistant"
-          className="w-40 h-40 mt-4 rounded-full shadow-lg"
-        />
-      ) : (
-        <p className="mt-4 text-gray-400">No assistant model set</p>
-      )}
+      </header>
+
+      <Chat
+        isOpen={chatOpen}
+        onClose={() => setChatOpen(false)}
+        onSend={sendMessageToAI}
+      />
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col items-center justify-center text-center px-6">
+        <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          Welcome, <span className="text-indigo-400">{user.assistantName}</span>
+        </h2>
+        <p className="text-gray-400 text-base mb-6">
+          Say{" "}
+          <span className="text-indigo-400 font-semibold">
+            {user.assistantName}
+          </span>{" "}
+          to wake me up.
+        </p>
+
+        {renderModel()}
+
+        {/* Listening Indicator */}
+        <div className="flex items-center gap-4">
+          <span className={"flex items-center justify-centerrounded-full "}>
+            <img
+              src={listening ? "/userVoice.gif" : "/aiVoice.gif"}
+              alt="voice indicator"
+              className="bg-gradient-to-b from-gray-950 via-black to-gray-900"
+            />
+          </span>
+        </div>
+      </main>
+
+      <footer className="text-center py-4 border-t border-gray-800 text-sm text-gray-500">
+        Built with ❤️ for you
+      </footer>
     </div>
   );
 };
 
 export default Mainpage;
+
+// "use client";
+
+// import { useEffect, useRef, useState } from "react";
+// import axios from "axios";
+// import dynamic from "next/dynamic";
+
+// const Spline = dynamic(() => import("@splinetool/react-spline"), {
+//   ssr: false,
+// });
+
+// const avatarToSpline: Record<string, string> = {
+//   "/model1.jpg": "https://prod.spline.design/aMiMaHmriiulsLTF/scene.splinecode",
+//   "/echoverse-avatar.jpg":
+//     "https://prod.spline.design/3R30UV0N-hg8sKge/scene.splinecode",
+//   "/model3.jpg": "https://prod.spline.design/hLFE1KeH865ijwWz/scene.splinecode",
+// };
+
+// // levenshtein + similarity stay same...
+// const levenshtein = (a: string, b: string) => {
+//   const dp = Array.from({ length: a.length + 1 }, () =>
+//     Array(b.length + 1).fill(0)
+//   );
+//   for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+//   for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+
+//   for (let i = 1; i <= a.length; i++) {
+//     for (let j = 1; j <= b.length; j++) {
+//       if (a[i - 1] === b[j - 1]) dp[i][j] = dp[i - 1][j - 1];
+//       else
+//         dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+//     }
+//   }
+//   return dp[a.length][b.length];
+// };
+// const similarity = (a: string, b: string) =>
+//   1 - levenshtein(a, b) / Math.max(a.length, b.length);
+
+// const Mainpage = () => {
+//   const [user, setUser] = useState<any>(null);
+//   const [listening, setListening] = useState(false);
+
+//   const isSpeakingRef = useRef(false);
+//   const recognitionRef = useRef<SpeechRecognition | null>(null);
+//   const isRecognizingRef = useRef(false);
+//   const lastSpokenRef = useRef<string>("");
+//   const restartTimeout = useRef<NodeJS.Timeout | null>(null);
+//   const errorCountRef = useRef(0);
+
+//   // ---------- API ----------
+//   const getGeminiResponse = async (command: string) => {
+//     try {
+//       const result = await axios.post(
+//         "http://localhost:8000/api/user/askToAssistant",
+//         { command },
+//         { withCredentials: true }
+//       );
+//       return result.data;
+//     } catch (error) {
+//       console.log("Mainpage Error", error);
+//     }
+//   };
+
+//   // ---------- TTS ----------
+//   const speaking = (text: string) => {
+//     if (!text) return;
+//     if ("speechSynthesis" in window) {
+//       window.speechSynthesis.cancel();
+//       const utterance = new SpeechSynthesisUtterance(text);
+//       isSpeakingRef.current = true;
+//       lastSpokenRef.current = text.toLowerCase();
+
+//       recognitionRef.current?.stop();
+
+//       utterance.onend = () => {
+//         isSpeakingRef.current = false;
+//         safeRecognition(600);
+//       };
+
+//       window.speechSynthesis.speak(utterance);
+//     }
+//   };
+
+//   // ---------- Command Handler ----------
+//   const handleQuery = (data: any) => {
+//     const { type = "general", userInput = "", response = "" } = data || {};
+//     speaking(response);
+
+//     switch (type) {
+//       case "google-search":
+//         window.open(
+//           `https://www.google.com/search?q=${encodeURIComponent(userInput)}`,
+//           "_blank"
+//         );
+//         break;
+//       case "calculator-open":
+//         window.open(`https://www.google.com/search?q=calculator`, "_blank");
+//         break;
+//       case "instagram-open":
+//         window.open(`https://www.instagram.com`, "_blank");
+//         break;
+//       case "facebook-open":
+//         window.open(`https://www.facebook.com`, "_blank");
+//         break;
+//       case "weather-show":
+//         window.open(`https://www.google.com/search?q=weather`, "_blank");
+//         break;
+//       case "youtube-search":
+//       case "youtube-play":
+//         window.open(
+//           `https://www.youtube.com/results?search_query=${encodeURIComponent(
+//             userInput
+//           )}`,
+//           "_blank"
+//         );
+//         break;
+//     }
+//   };
+
+//   // ---------- Safe Recognition ----------
+//   const safeRecognition = (delay = 1000) => {
+//     if (restartTimeout.current) clearTimeout(restartTimeout.current);
+//     restartTimeout.current = setTimeout(() => {
+//       if (
+//         !isSpeakingRef.current &&
+//         !isRecognizingRef.current &&
+//         recognitionRef.current
+//       ) {
+//         try {
+//           recognitionRef.current.start();
+//           console.log("[Recognition] Restart");
+//         } catch (error: any) {
+//           if (error.name !== "InvalidStateError") {
+//             console.error("[Recognition] start failed:", error);
+//           }
+//         }
+//       }
+//     }, delay);
+//   };
+
+//   // ---------- Fetch User ----------
+//   useEffect(() => {
+//     const fetchUser = async () => {
+//       try {
+//         const res = await axios.get("http://localhost:8000/api/user/current", {
+//           withCredentials: true,
+//         });
+//         setUser(res.data);
+//       } catch (err: any) {
+//         console.error(
+//           "Error fetching user:",
+//           err.response?.data || err.message
+//         );
+//       }
+//     };
+//     fetchUser();
+//   }, []);
+
+//   // ---------- Speech Recognition ----------
+//   useEffect(() => {
+//     if (!user) return;
+
+//     const SpeechRecognition =
+//       window.SpeechRecognition || window.webkitSpeechRecognition;
+//     const recognition: SpeechRecognition = new SpeechRecognition();
+//     recognition.continuous = true;
+//     recognition.lang = "en-US";
+//     recognitionRef.current = recognition;
+
+//     recognition.onstart = () => {
+//       console.log("[Recognition] Started");
+//       isRecognizingRef.current = true;
+//       setListening(true);
+//     };
+
+//     recognition.onend = () => {
+//       console.log("[Recognition] Ended");
+//       isRecognizingRef.current = false;
+//       setListening(false);
+//       if (!isSpeakingRef.current) safeRecognition(800);
+//     };
+
+//     recognition.onerror = (e: any) => {
+//       console.warn("[Recognition] Error:", e.error);
+//       isRecognizingRef.current = false;
+//       setListening(false);
+//       if (e.error !== "aborted" && !isSpeakingRef.current) {
+//         errorCountRef.current++;
+//         const backoff = Math.min(5000, 1000 * errorCountRef.current);
+//         safeRecognition(backoff);
+//       }
+//     };
+
+//     recognition.onresult = async (e: any) => {
+//       const transcript = e.results[e.results.length - 1][0].transcript
+//         .trim()
+//         .toLowerCase();
+//       console.log("[Recognition] Heard:", transcript);
+
+//       if (
+//         lastSpokenRef.current &&
+//         similarity(transcript, lastSpokenRef.current) > 0.7
+//       ) {
+//         console.log("[Recognition] Ignored echo");
+//         return;
+//       }
+
+//       const hotword = new RegExp(`\\b${user.assistantName.toLowerCase()}\\b`);
+//       if (hotword.test(transcript)) {
+//         recognition.stop();
+//         isRecognizingRef.current = false;
+//         setListening(false);
+
+//         const data = await getGeminiResponse(transcript);
+//         console.log("[Assistant Response]:", data);
+//         handleQuery(data);
+//       }
+//     };
+
+//     const fallBackCheck = setInterval(() => {
+//       if (!isSpeakingRef.current && !isRecognizingRef.current) {
+//         safeRecognition(500);
+//       }
+//     }, 10000);
+
+//     safeRecognition();
+
+//     return () => {
+//       recognition.stop();
+//       setListening(false);
+//       isRecognizingRef.current = false;
+//       if (restartTimeout.current) clearTimeout(restartTimeout.current);
+//       clearInterval(fallBackCheck);
+//     };
+//   }, [user]);
+
+//   if (!user) return <p className="text-center text-white">Loading...</p>;
+//   const splineUrl = avatarToSpline[user.assistantImage];
+
+//   return (
+//     <div className="h-screen w-full flex flex-col bg-gradient-to-b from-gray-950 via-black to-gray-900">
+//       {/* Navbar */}
+//       <header className="flex justify-between items-center px-8 py-4 border-b border-gray-800">
+//         <h1 className="text-xl font-bold text-white tracking-wide">
+//           EchoVerse
+//         </h1>
+//       </header>
+
+//       {/* Main Content */}
+//       <main className="flex-1 flex flex-col items-center justify-center text-center px-6">
+//         <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+//           Welcome,{" "}
+//           <span className="text-indigo-400">
+//             {user.assistantName || "Assistant"}
+//           </span>
+//         </h2>
+//         <p className="text-gray-400 text-base mb-6">
+//           Say{" "}
+//           <span className="text-indigo-400 font-semibold">
+//             {user.assistantName}
+//           </span>{" "}
+//           to wake me up.
+//         </p>
+
+//         {splineUrl ? (
+//           <div className="w-[50%] h-[600px] flex justify-center items-center">
+//             <Spline
+//               scene={splineUrl}
+//               className="w-full h-full object-fill"
+//               style={{ maxWidth: "100%", maxHeight: "100%" }}
+//             />
+//           </div>
+//         ) : user.assistantImage ? (
+//           <img
+//             src={user.assistantImage}
+//             alt="Assistant"
+//             className="w-20 h-20 mt-4 rounded-full shadow-lg border border-gray-700 object-contain"
+//           />
+//         ) : (
+//           <p className="mt-4 text-gray-500">No assistant model set</p>
+//         )}
+// <div className="flex items-center gap-4">
+//   <span className={"flex items-center justify-centerrounded-full "}>
+//     <img
+//       src={listening ? "/userVoice.gif" : "/aiVoice.gif"}
+//       alt="voice indicator"
+//       className="bg-gradient-to-b from-gray-950 via-black to-gray-900"
+//     />
+//   </span>
+// </div>
+//       </main>
+
+//       {/* Footer */}
+//       <footer className="text-center py-4 border-t border-gray-800 text-sm text-gray-500">
+//         Built with ❤️ for you
+//       </footer>
+//     </div>
+//   );
+// };
+
+// export default Mainpage;

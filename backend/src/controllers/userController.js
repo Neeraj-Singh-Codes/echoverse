@@ -29,6 +29,21 @@ export const updateAssistant = async (req, res) => {
   }
 };
 
+export const fetchModel = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select("-password"); // use userId from isAuth
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.status(200).json({
+      assistantImage: user.assistantImage || null,
+      assistantName: user.assistantName || "",
+    });
+  } catch (err) {
+    console.error("Fetch model error:", err);
+    res.status(500).json({ message: "Error fetching model" });
+  }
+};
+
 export const askToAssistant = async (req, res) => {
   try {
     const { command } = req.body;
@@ -72,6 +87,7 @@ export const askToAssistant = async (req, res) => {
           userInput: gemResult.userInput,
           response: `This month is ${moment().format("MMMM")}`,
         });
+      case "google-search":
       case "youtube-search":
       case "youtube-play":
       case "general":
