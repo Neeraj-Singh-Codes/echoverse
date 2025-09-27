@@ -7,8 +7,9 @@ import ModelOne, { modelOneSpeak } from "../components/models/ModelOne";
 import ModelTwo, { modelTwoSpeak } from "../components/models/ModelTwo";
 import ModelThree, { modelThreeSpeak } from "../components/models/Modelthree";
 import Chat from "../components/Chat";
-
-import { MessageSquareText, Settings } from "lucide-react";
+import { MessageSquareText } from "lucide-react";
+import BubbleMenu from "../Animations/BubbleMenu";
+import TrueFocus from "../Animations/TrueFocus";
 
 // levenshtein + similarity stay same...
 const levenshtein = (a: string, b: string) => {
@@ -282,19 +283,62 @@ const Mainpage = () => {
 
   if (!user) return <p className="text-center text-white">Loading...</p>;
 
+  const items = [
+    {
+      label: "home",
+      href: "/Homepage",
+      ariaLabel: "Home",
+      rotation: -8,
+      hoverStyles: { bgColor: "#3b82f6", textColor: "#ffffff" },
+    },
+    {
+      label: "Models",
+      href: "/Models",
+      ariaLabel: "Model",
+      rotation: 8,
+      hoverStyles: { bgColor: "#10b981", textColor: "#ffffff" },
+    },
+    {
+      label: "Model Name",
+      href: "/ChooseName",
+      ariaLabel: "Model Name",
+      rotation: 8,
+      hoverStyles: { bgColor: "#f59e0b", textColor: "#ffffff" },
+    },
+    {
+      label: "History",
+      href: "#",
+      ariaLabel: "History",
+      rotation: 8,
+      hoverStyles: { bgColor: "#ef4444", textColor: "#ffffff" },
+    },
+    {
+      label: "Log Out",
+      href: "/Homepage",
+      ariaLabel: "Log Out",
+      rotation: -8,
+      hoverStyles: { bgColor: "#8b5cf6", textColor: "#ffffff" },
+    },
+  ];
+
   return (
     <div className="h-screen w-full flex flex-col bg-gradient-to-b from-gray-950 via-black to-gray-900">
       {/* Navbar */}
       <header className="flex justify-between items-center px-8 py-4 border-b border-gray-800">
-        <h1 className="text-xl font-bold text-white tracking-wide">
-          EchoVerse
-        </h1>
-        <div className="flex gap-6 mr-2">
+        <TrueFocus
+          sentence="Echo Verse"
+          manualMode={false}
+          blurAmount={5}
+          borderColor="purple"
+          animationDuration={2}
+          pauseBetweenAnimations={1}
+        />
+
+        <div className="flex mr-18">
           <MessageSquareText
             className="size-7 cursor-pointer"
             onClick={() => setChatOpen(true)}
-          />{" "}
-          <Settings className="size-7" />
+          />
         </div>
       </header>
 
@@ -334,6 +378,18 @@ const Mainpage = () => {
       <footer className="text-center py-4 border-t border-gray-800 text-sm text-gray-500">
         Built with ❤️ for you
       </footer>
+
+      <BubbleMenu
+        logo={<span style={{ fontWeight: 700 }}>RB</span>}
+        items={items}
+        menuAriaLabel="Toggle navigation"
+        menuBg="#ffffff"
+        menuContentColor="#111111"
+        useFixedPosition={false}
+        animationEase="back.out(1.5)"
+        animationDuration={0.5}
+        staggerDelay={0.12}
+      />
     </div>
   );
 };
