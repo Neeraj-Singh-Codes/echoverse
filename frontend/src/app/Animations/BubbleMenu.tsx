@@ -727,6 +727,16 @@ export default function BubbleMenu({
                     ref={(el) => {
                       if (el) bubblesRef.current[idx] = el;
                     }}
+                    onClick={(e) => {
+                      e.preventDefault(); // prevent default Next.js navigation if using a function
+                      if ((item as any).onClick) {
+                        (item as any).onClick(); // call the function if provided
+                      } else {
+                        window.location.href = item.href; // fallback to regular navigation
+                      }
+                      setIsMenuOpen(false); // optionally close the menu after click
+                      setShowOverlay(false);
+                    }}
                   >
                     <span
                       className="pill-label inline-block"

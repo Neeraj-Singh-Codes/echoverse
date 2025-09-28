@@ -10,6 +10,7 @@ import Chat from "../components/Chat";
 import { MessageSquareText } from "lucide-react";
 import BubbleMenu from "../Animations/BubbleMenu";
 import TrueFocus from "../Animations/TrueFocus";
+import { useRouter } from "next/navigation";
 
 // levenshtein + similarity stay same...
 const levenshtein = (a: string, b: string) => {
@@ -35,6 +36,8 @@ const Mainpage = () => {
   const [user, setUser] = useState<any>(null);
   const [listening, setListening] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [userText, setUserText] = useState("");
+  const [aiText, setAiText] = useState("");
 
   const isSpeakingRef = useRef(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -42,6 +45,8 @@ const Mainpage = () => {
   const lastSpokenRef = useRef<string>("");
   const restartTimeout = useRef<NodeJS.Timeout | null>(null);
   const errorCountRef = useRef(0);
+
+  const router = useRouter();
 
   // Talk With AI
   const getGeminiResponse = async (command: string) => {
@@ -69,6 +74,18 @@ const Mainpage = () => {
     } catch (err) {
       console.error(err);
       return "Error talking to AI.";
+    }
+  };
+
+  const logout = async () => {
+    try {
+      const res = await axios.get("http://localhost:8000/api/auth/logout", {
+        withCredentials: true,
+      });
+      return res.data.response || "No response";
+    } catch (error) {
+      console.error(error);
+      return "Error Logging Out";
     }
   };
 
@@ -102,7 +119,7 @@ const Mainpage = () => {
         });
         setUser(res.data);
       } catch (err: any) {
-        console.error(err.response?.data || err.message);
+        console.log(err.response?.data || err.message);
       }
     };
     fetchUser();
@@ -314,15 +331,19 @@ const Mainpage = () => {
     },
     {
       label: "Log Out",
-      href: "/Homepage",
+      href: "#",
       ariaLabel: "Log Out",
       rotation: -8,
       hoverStyles: { bgColor: "#8b5cf6", textColor: "#ffffff" },
+      onClick: async () => {
+        await logout();
+        router.push("/Homepage");
+      },
     },
   ];
 
   return (
-    <div className="h-screen w-full flex flex-col bg-gradient-to-b from-gray-950 via-black to-gray-900">
+    <div className="h-screen w-full flex flex-col bg-black">
       {/* Navbar */}
       <header className="flex justify-between items-center px-8 py-4 border-b border-gray-800">
         <TrueFocus
@@ -366,18 +387,15 @@ const Mainpage = () => {
         {/* Listening Indicator */}
         <div className="flex items-center gap-4">
           <span className={"flex items-center justify-centerrounded-full "}>
-            <img
-              src={listening ? "/userVoice.gif" : "/aiVoice.gif"}
-              alt="voice indicator"
-              className="bg-gradient-to-b from-gray-950 via-black to-gray-900"
-            />
+            {!aiText && <img src="userVoice.gif" className="w-[200px]" />}
+            {aiText && <img src="aiVoice.gif" className="w-[200px]" />}
           </span>
         </div>
       </main>
 
-      <footer className="text-center py-4 border-t border-gray-800 text-sm text-gray-500">
+      {/* <footer className="text-center py-4 border-t border-gray-800 text-sm text-gray-500">
         Built with ❤️ for you
-      </footer>
+      </footer> */}
 
       <BubbleMenu
         logo={<span style={{ fontWeight: 700 }}>RB</span>}
