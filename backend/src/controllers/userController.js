@@ -60,6 +60,18 @@ export const askToAssistant = async (req, res) => {
       });
     }
     const gemResult = JSON.parse(jsonMatch[0]);
+    if (gemResult.userInput?.toLowerCase().includes("open blackboard")) {
+      gemResult.type = "open-blackboard";
+      gemResult.response = "Opening Blackboard for you!";
+    }
+
+    if (gemResult.type === "wikipedia-search") {
+      gemResult.userInput = gemResult.userInput
+        .replace(/search for\s/i, "")
+        .replace(/on wikipedia/i, "")
+        .trim();
+    }
+
     const type = gemResult.type;
 
     switch (type) {
@@ -88,6 +100,17 @@ export const askToAssistant = async (req, res) => {
           response: `This month is ${moment().format("MMMM")}`,
         });
       case "google-search":
+      case "wikipedia-search":
+      case "x-search":
+      case "linkedin-search":
+      case "reddit-search":
+      case "spotify-open":
+      case "spotify-open":
+      case "maps-search":
+      case "translate-search":
+      case "github-search":
+      case "gmail-open":
+
       case "youtube-search":
       case "youtube-play":
       case "general":
@@ -95,6 +118,7 @@ export const askToAssistant = async (req, res) => {
       case "instagram-open":
       case "facebook-open":
       case "weather-show":
+      case "open-blackboard":
         return res.json({
           type,
           userInput: gemResult.userInput,

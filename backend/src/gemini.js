@@ -68,7 +68,8 @@ Instead, you must give clear, direct, and helpful answers in natural conversatio
 Your responses must always follow this JSON structure:
 
 {
-  "type": "general" | "google-search" | "youtube-search" | "youtube-play" | "get-time" | "get-date" | "get-day" | "get-month" | "calculator-open" | "instagram-open" | "facebook-open" | "whatsapp-open" | "weather-show",
+  "type": "general" | "google-search" |"wikipedia-search" |"x-search"|"linkedin-search"|"reddit-search"|"spotify-open"|"spotify-open"| "maps-search" | "translate-search"
+|"github-search" | "gmail-open" | "youtube-search" | "youtube-play" | "get-time" | "get-date" | "get-day" | "get-month" | "calculator-open" | "instagram-open" | "facebook-open" | "whatsapp-open" | "weather-show",
   "userInput": "<the cleaned-up user input (remove your name if mentioned)>",
   "response": "<a short, natural, voice-friendly reply>"
 }

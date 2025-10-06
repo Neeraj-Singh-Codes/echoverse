@@ -22,7 +22,7 @@ export const modelThreeSpeak = (
   speechSynthesis.speak(utterance);
 };
 
-const ModelThree = ({ isSpeakingRef, startRecognition }) => {
+const ModelThree = ({ isSpeakingRef, startRecognition }: { isSpeakingRef: any; startRecognition: any }) => {
   return (
     <div className="flex flex-col items-center w-full max-w-[600px] h-[600px]">
       <Spline

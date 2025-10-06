@@ -1,5 +1,5 @@
-"use client";
 
+"use client";
 import { useRef, useState, useEffect } from "react";
 import {
   Undo2,
@@ -10,32 +10,32 @@ import {
   Trash2,
   Palette,
   RefreshCw,
+  Sparkles,
 } from "lucide-react";
 
 export default function BlackBoard() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
 
   const [isDrawing, setIsDrawing] = useState(false);
-  const [color, setColor] = useState("#ffffff");
+  const [color, setColor] = useState("#a78bfa");
   const [lineWidth, setLineWidth] = useState(3);
-  const [boardColor, setBoardColor] = useState("#1a1a1a"); // Default blackboard
+  const [boardColor, setBoardColor] = useState("#0f0a1f");
+  const [activeTool, setActiveTool] = useState("pen");
 
   const [history, setHistory] = useState<string[]>([]);
   const [redoStack, setRedoStack] = useState<string[]>([]);
 
-  // Initialize Canvas (preserve strokes when switching board)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    canvas.width = window.innerWidth * 0.6;
-    canvas.height = window.innerHeight * 0.7;
+    canvas.width = Math.min(window.innerWidth * 0.85, 1200);
+    canvas.height = Math.min(window.innerHeight * 0.65, 700);
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // preserve strokes
     const snapshot = canvas.toDataURL();
     const img = new Image();
     img.src = snapshot;
@@ -46,42 +46,39 @@ export default function BlackBoard() {
     };
 
     ctx.lineCap = "round";
+    ctx.lineJoin = "round";
     ctx.strokeStyle = color;
     ctx.lineWidth = lineWidth;
     ctxRef.current = ctx;
-  }, [boardColor]);
+  }, [boardColor, color, lineWidth]);
 
-  // Save snapshot to history
   const saveState = () => {
     if (!canvasRef.current) return;
     const snapshot = canvasRef.current.toDataURL();
     setHistory((prev) => [...prev, snapshot]);
-    setRedoStack([]); // clear redo after new action
+    setRedoStack([]);
   };
 
-  // Start drawing
-  const startDrawing = (e: React.MouseEvent) => {
-    ctxRef.current?.beginPath();
-    ctxRef.current?.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+  const startDrawing = (e:React.MouseEvent<HTMLCanvasElement>) => {
+    if (!ctxRef.current) return;
+    ctxRef.current.beginPath();
+    ctxRef.current.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
     setIsDrawing(true);
   };
 
-  // Stop drawing
   const stopDrawing = () => {
     if (!isDrawing) return;
-    ctxRef.current?.closePath();
+    if (ctxRef.current) ctxRef.current.closePath();
     setIsDrawing(false);
     saveState();
   };
 
-  // Draw
-  const draw = (e: React.MouseEvent) => {
-    if (!isDrawing) return;
-    ctxRef.current!.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
-    ctxRef.current!.stroke();
+  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !ctxRef.current) return;
+    ctxRef.current.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+    ctxRef.current.stroke();
   };
 
-  // Clear board
   const clearBoard = () => {
     if (!ctxRef.current || !canvasRef.current) return;
     ctxRef.current.fillStyle = boardColor;
@@ -94,61 +91,96 @@ export default function BlackBoard() {
     saveState();
   };
 
-  // Undo
   const undo = () => {
-    if (history.length === 0) return;
-    const lastState = history[history.length - 1];
-    setRedoStack((prev) => [...prev, lastState]);
+    if (history.length === 0 || !canvasRef.current || !ctxRef.current) return;
+    setRedoStack((prev) =>
+  canvasRef.current ? [...prev, canvasRef.current.toDataURL()] : prev
+);
+
     const newHistory = history.slice(0, -1);
     setHistory(newHistory);
 
-    const img = new Image();
-    img.src = newHistory[newHistory.length - 1] || "";
-    img.onload = () => {
-      ctxRef.current?.drawImage(img, 0, 0);
-    };
+    if (newHistory.length === 0) {
+      ctxRef.current.fillStyle = boardColor;
+      ctxRef.current.fillRect(
+        0,
+        0,
+        canvasRef.current.width,
+        canvasRef.current.height
+      );
+    } else {
+      const img = new Image();
+      img.src = newHistory[newHistory.length - 1];
+      img.onload = () => {
+        if (!ctxRef.current || !canvasRef.current) return;
+        ctxRef.current.clearRect(
+          0,
+          0,
+          canvasRef.current.width,
+          canvasRef.current.height
+        );
+        ctxRef.current.drawImage(img, 0, 0);
+      };
+    }
   };
 
-  // Redo
   const redo = () => {
-    if (redoStack.length === 0) return;
+    if (redoStack.length === 0 || !ctxRef.current || !canvasRef.current) return;
     const restoredState = redoStack[redoStack.length - 1];
     setRedoStack(redoStack.slice(0, -1));
-    setHistory((prev) => [...prev, restoredState]);
+   setRedoStack((prev) =>
+  canvasRef.current ? [...prev, canvasRef.current.toDataURL()] : prev
+);
+
 
     const img = new Image();
     img.src = restoredState;
     img.onload = () => {
-      ctxRef.current?.drawImage(img, 0, 0);
+      if (!ctxRef.current || !canvasRef.current) return;
+      ctxRef.current.clearRect(
+        0,
+        0,
+        canvasRef.current.width,
+        canvasRef.current.height
+      );
+      ctxRef.current.drawImage(img, 0, 0);
     };
   };
 
-  // Eraser Mode
   const enableEraser = () => {
     if (ctxRef.current) {
       ctxRef.current.strokeStyle = boardColor;
+      setActiveTool("eraser");
     }
   };
 
-  // Pen Mode
   const enablePen = () => {
     if (ctxRef.current) {
       ctxRef.current.strokeStyle = color;
+      setActiveTool("pen");
     }
   };
 
-  // Download board
   const downloadBoard = () => {
+    if (!canvasRef.current) return;
     const link = document.createElement("a");
-    link.download = "board.png";
-    link.href = canvasRef.current!.toDataURL();
+    link.download = `board-${Date.now()}.png`;
+    link.href = canvasRef.current.toDataURL();
     link.click();
   };
 
   return (
-    <div className="flex flex-col items-center gap-6 p-6">
-      {/* Canvas */}
-      <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-700">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col items-center justify-center p-4 sm:p-8">
+      <div className="mb-6 text-center">
+        <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 flex items-center justify-center gap-3">
+          <Sparkles className="w-8 h-8 text-purple-400 animate-pulse" />
+          Digital Canvas
+          <Sparkles className="w-8 h-8 text-purple-400 animate-pulse" />
+        </h1>
+        <p className="text-purple-300 mt-2 text-sm">Create, express, inspire</p>
+      </div>
+
+      <div className="relative rounded-3xl overflow-hidden shadow-2xl border-2 border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-1 backdrop-blur-sm mb-6 transition-all duration-300 hover:shadow-purple-500/20">
         <canvas
           ref={canvasRef}
           onMouseDown={startDrawing}
@@ -156,92 +188,113 @@ export default function BlackBoard() {
           onMouseUp={stopDrawing}
           onMouseLeave={stopDrawing}
           className="rounded-2xl cursor-crosshair"
+          style={{ backgroundColor: boardColor }}
         />
       </div>
 
-      {/* Controls */}
-      <div className="flex flex-wrap gap-3 justify-center bg-white/10 backdrop-blur-md p-4 rounded-2xl shadow-lg">
-        {/* Color Picker */}
-        <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 shadow-inner">
-          <Palette className="w-5 h-5 text-white" />
-          <input
-            type="color"
-            value={color}
-            onChange={(e) => {
-              setColor(e.target.value);
-              if (ctxRef.current) ctxRef.current.strokeStyle = e.target.value;
-            }}
-            className="w-8 h-8 rounded-full cursor-pointer border-none"
-          />
-        </label>
+      <div className="w-full max-w-5xl">
+        <div className="bg-gradient-to-r from-purple-900/40 via-slate-900/40 to-purple-900/40 backdrop-blur-xl p-6 rounded-3xl shadow-2xl border border-purple-500/20">
+          <div className="flex flex-wrap gap-3 justify-center items-center">
+            <div className="group relative">
+              <label className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 shadow-lg cursor-pointer transition-all duration-300 hover:scale-105">
+                <Palette className="w-5 h-5 text-purple-300" />
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(e) => {
+                    setColor(e.target.value);
+                    if (ctxRef.current && activeTool === "pen") {
+                      ctxRef.current.strokeStyle = e.target.value;
+                    }
+                  }}
+                  className="w-10 h-10 rounded-lg cursor-pointer border-2 border-purple-400/50"
+                />
+                <span className="text-purple-200 text-sm font-medium">
+                  Color
+                </span>
+              </label>
+            </div>
 
-        {/* Brush Size */}
-        <input
-          type="range"
-          min="1"
-          max="20"
-          value={lineWidth}
-          onChange={(e) => {
-            setLineWidth(Number(e.target.value));
-            if (ctxRef.current)
-              ctxRef.current.lineWidth = Number(e.target.value);
-          }}
-          className="w-28 accent-blue-500"
-        />
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 shadow-lg">
+              <span className="text-purple-200 text-sm font-medium whitespace-nowrap">
+                Size: {lineWidth}px
+              </span>
+              <input
+                type="range"
+                min="1"
+                max="20"
+                value={lineWidth}
+                onChange={(e) => {
+                  setLineWidth(Number(e.target.value));
+                  if (ctxRef.current)
+                    ctxRef.current.lineWidth = Number(e.target.value);
+                }}
+                className="w-32 h-2 bg-purple-900/50 rounded-lg appearance-none cursor-pointer accent-purple-500"
+              />
+            </div>
 
-        {/* Tools */}
-        <button
-          onClick={enablePen}
-          className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1"
-        >
-          <PenLine size={18} /> Pen
-        </button>
-        <button
-          onClick={enableEraser}
-          className="px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white flex items-center gap-1"
-        >
-          <Eraser size={18} /> Eraser
-        </button>
+            <button
+              onClick={enablePen}
+              className={`px-4 py-3 rounded-xl font-medium flex items-center gap-2 transition-all duration-300 shadow-lg ${
+                activeTool === "pen"
+                  ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white scale-105 shadow-purple-500/50"
+                  : "bg-purple-600/20 text-purple-200 border border-purple-500/30 hover:bg-purple-600/30 hover:scale-105"
+              }`}
+            >
+              <PenLine size={18} /> Pen
+            </button>
 
-        {/* Undo / Redo */}
-        <button
-          onClick={undo}
-          className="px-3 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white flex items-center gap-1"
-        >
-          <Undo2 size={18} /> Undo
-        </button>
-        <button
-          onClick={redo}
-          className="px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white flex items-center gap-1"
-        >
-          <Redo2 size={18} /> Redo
-        </button>
+            <button
+              onClick={enableEraser}
+              className={`px-4 py-3 rounded-xl font-medium flex items-center gap-2 transition-all duration-300 shadow-lg ${
+                activeTool === "eraser"
+                  ? "bg-gradient-to-r from-slate-600 to-slate-700 text-white scale-105 shadow-slate-500/50"
+                  : "bg-slate-600/20 text-purple-200 border border-purple-500/30 hover:bg-slate-600/30 hover:scale-105"
+              }`}
+            >
+              <Eraser size={18} /> Eraser
+            </button>
 
-        {/* Clear */}
-        <button
-          onClick={clearBoard}
-          className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white flex items-center gap-1"
-        >
-          <Trash2 size={18} /> Clear
-        </button>
+            <button
+              onClick={undo}
+              disabled={history.length === 0}
+              className="px-4 py-3 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 disabled:opacity-40 disabled:cursor-not-allowed text-amber-200 border border-amber-500/30 font-medium flex items-center gap-2 transition-all duration-300 shadow-lg hover:scale-105"
+            >
+              <Undo2 size={18} /> Undo
+            </button>
 
-        {/* Save */}
-        <button
-          onClick={downloadBoard}
-          className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white flex items-center gap-1"
-        >
-          <Download size={18} /> Save
-        </button>
+            <button
+              onClick={redo}
+              disabled={redoStack.length === 0}
+              className="px-4 py-3 rounded-xl bg-violet-600/20 hover:bg-violet-600/30 disabled:opacity-40 disabled:cursor-not-allowed text-violet-200 border border-violet-500/30 font-medium flex items-center gap-2 transition-all duration-300 shadow-lg hover:scale-105"
+            >
+              <Redo2 size={18} /> Redo
+            </button>
 
-        {/* Switch Board */}
-        <button
-          onClick={() =>
-            setBoardColor(boardColor === "#1a1a1a" ? "#ffffff" : "#1a1a1a")
-          }
-          className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1"
-        >
-          <RefreshCw size={18} /> Switch Board
-        </button>
+            <button
+              onClick={clearBoard}
+              className="px-4 py-3 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-200 border border-red-500/30 font-medium flex items-center gap-2 transition-all duration-300 shadow-lg hover:scale-105"
+            >
+              <Trash2 size={18} /> Clear
+            </button>
+
+            <button
+              onClick={downloadBoard}
+              className="px-4 py-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-200 border border-emerald-500/30 font-medium flex items-center gap-2 transition-all duration-300 shadow-lg hover:scale-105"
+            >
+              <Download size={18} /> Save
+            </button>
+
+            <button
+              onClick={() =>
+                setBoardColor(boardColor === "#0f0a1f" ? "#f8f9fa" : "#0f0a1f")
+              }
+              className="px-4 py-3 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-200 border border-indigo-500/30 font-medium flex items-center gap-2 transition-all duration-300 shadow-lg hover:scale-105"
+            >
+              <RefreshCw size={18} /> Switch
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

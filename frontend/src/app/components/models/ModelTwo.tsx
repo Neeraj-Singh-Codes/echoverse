@@ -9,9 +9,9 @@ export const modelTwoSpeak = (
 ) => {
   if (!text) return;
   speechSynthesis.cancel();
-  if (window.speechRecognitionInstance) {
+  if ((window as any).speechRecognitionInstance) {
     try {
-      window.speechRecognitionInstance.stop();
+      (window as any).speechRecognitionInstance.stop();
     } catch {}
   }
 
@@ -35,7 +35,7 @@ export const modelTwoSpeak = (
   speechSynthesis.speak(utterance);
 };
 
-const ModelTwo = ({ isSpeakingRef, startRecognition }) => {
+const ModelTwo = ({ isSpeakingRef, startRecognition }: { isSpeakingRef: any; startRecognition: any }) => {
   return (
     <div className="flex flex-col items-center w-full max-w-[600px] h-[600px]">
       <Spline

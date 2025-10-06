@@ -1,10 +1,10 @@
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import LandingPage from "./Homepage/page";
+import { cookies } from "next/headers";
 
 async function getCurrentUser() {
-  const cookieStore = cookies();
+  const cookieStore= cookies() as any;
   const token = cookieStore.get("token")?.value;
 
   if (!token) return null;
@@ -12,11 +12,11 @@ async function getCurrentUser() {
   try {
     const res = await fetch("http://localhost:8000/api/user/current", {
       headers: { cookie: `token=${token}` },
-      cache: "no-store", // ensures fresh server-side fetch
+      cache: "no-store",
     });
 
     if (!res.ok) return null;
-    return res.json(); // should return user object
+    return res.json();
   } catch (err) {
     return null;
   }
@@ -31,7 +31,5 @@ export default async function HomePage() {
     redirect("/Mainpage");
   }
 
-
-  // User not logged in → render the landing page
   return <LandingPage />;
 }

@@ -77,9 +77,9 @@ const LandingPage = () => {
             </a>
           </div>
           <Link href={"/Signup"}>
-          <button className="bg-gradient-to-r from-purple-500 to-blue-500 px-6 py-2 rounded-full hover:from-purple-600 hover:to-blue-600 transition-all transform hover:scale-105">
-            Get Started
-          </button>
+            <button className="bg-gradient-to-r from-purple-500 to-blue-500 px-6 py-2 rounded-full hover:from-purple-600 hover:to-blue-600 transition-all transform hover:scale-105">
+              Get Started
+            </button>
           </Link>
         </nav>
       </header>
@@ -113,12 +113,12 @@ const LandingPage = () => {
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
             <Link href={"/Signin"}>
-            <button
-              onClick={toggleDemo}
-              className="bg-white/10 backdrop-blur-sm border border-white/20 px-8 py-4 rounded-full text-lg font-semibold hover:bg-white/20 transition-all flex items-center justify-center group"
-            >
-              Sign In
-            </button>
+              <button
+                onClick={toggleDemo}
+                className="bg-white/10 backdrop-blur-sm border border-white/20 px-8 py-4 rounded-full text-lg font-semibold hover:bg-white/20 transition-all flex items-center justify-center group"
+              >
+                Sign In
+              </button>
             </Link>
           </div>
 
@@ -257,7 +257,7 @@ const LandingPage = () => {
             {[
               { number: "99.9%", label: "Voice Accuracy" },
               { number: "<100ms", label: "Response Time" },
-              { number: "50+", label: "Languages" },
+              { number: "Interactive", label: "Models" },
               { number: "24/7", label: "Availability" },
             ].map((stat, index) => (
               <div
@@ -282,7 +282,7 @@ const LandingPage = () => {
               Ready to Start Talking?
             </h2>
             <p className="text-xl text-gray-300 mb-8">
-              Join thousands of users who have already discovered the power of
+              Unlock the Power of Customizable Personal Voice and Chat Assistant
               AI-driven conversation
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
