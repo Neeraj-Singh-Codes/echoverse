@@ -35,14 +35,19 @@ export const modelTwoSpeak = (
   speechSynthesis.speak(utterance);
 };
 
-const ModelTwo = ({ isSpeakingRef, startRecognition }: { isSpeakingRef: any; startRecognition: any }) => {
+const ModelTwo = ({
+  isSpeakingRef,
+  startRecognition,
+}: {
+  isSpeakingRef: any;
+  startRecognition: any;
+}) => {
   return (
     <div className="flex flex-col items-center w-full max-w-[600px] h-[600px]">
       <Spline
-        scene="https://prod.spline.design/3R30UV0N-hg8sKge/scene.splinecode"
+        scene="https://prod.spline.design/WZXeiBX2HIsi8Xz1/scene.splinecode"
         className="w-full h-full object-contain"
       />
-      <p className="text-white mt-2">Hindi Model</p>
     </div>
   );
 };

@@ -234,7 +234,7 @@ const Mainpage = () => {
       case "/model1.jpg":
         modelOneSpeak(response, isSpeakingRef, () => safeRecognition());
         break;
-      case "/echoverse-avatar.jpg":
+      case "/model2.png":
         modelTwoSpeak(response, isSpeakingRef, () => safeRecognition());
         break;
       case "/model3.jpg":
@@ -350,7 +350,7 @@ const Mainpage = () => {
             startRecognition={() => safeRecognition()}
           />
         );
-      case "/echoverse-avatar.jpg":
+      case "/model2.png":
         return (
           <ModelTwo
             isSpeakingRef={isSpeakingRef}

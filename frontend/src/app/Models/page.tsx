@@ -11,26 +11,23 @@ const avatars = [
   {
     image: "/model1.jpg",
     title: "EchoVerse Model 1",
-    description: "The futuristic AI with glowing details and sleek design.",
+    description:
+      "A balanced AI with a calm and natural American voice. Designed for smooth and intelligent interactions, this model blends futuristic visuals with human-like tone and clarity.",
     number: "01",
   },
   {
-    image: "/echoverse-avatar.jpg",
+    image: "/model2.png",
     title: "EchoVerse Model 2",
-    description: "Dynamic second assistant with strong sci-fi vibes.",
+    description:
+      "A bilingual powerhouse that communicates in Hindi with expressive intonation. With sci-fi energy and cultural depth, it brings emotional connection and localized intelligence to EchoVerse.",
     number: "02",
   },
   {
     image: "/model3.jpg",
     title: "EchoVerse Model 3",
-    description: "Minimalist but powerful design for immersive experiences.",
+    description:
+      "An elegant and articulate AI with a refined British accent. Featuring a higher pitch and poised tone, it delivers answers with sophistication and immersive presence.",
     number: "03",
-  },
-  {
-    image: "/echoverse-avatar.jpg",
-    title: "EchoVerse Model 4",
-    description: "Elegant and bold with glowing effects to stand out.",
-    number: "04",
   },
 ];
 
@@ -112,24 +109,29 @@ const Models = () => {
                   className="object-cover transition-transform duration-[1500ms] ease-in-out hover:scale-105"
                 />
               </div>
-              <div className="z-10 flex items-center justify-between ">
-                {/* Left side: Select button */}
-                <button
-                  onClick={handleSelect}
-                  className="fancy-btn px-8 py-4 mt-10 border-2 border-purple-500 font-bold text-white bg-transparent text-xl"
-                >
-                  Select {m.title}
-                </button>
-                {/* Right side: Next icon */}
+              <div className="z-10 flex flex-col md:flex-row items-center justify-between mt-6 gap-6">
+                <div className="flex flex-col items-start max-w-[600px]">
+                  <button
+                    onClick={handleSelect}
+                    className="fancy-btn px-8 py-4 border-2 border-purple-500 font-bold text-white bg-transparent text-xl 
+      hover:bg-purple-600/10 hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all duration-300"
+                  >
+                    Select {m.title}
+                  </button>
+                </div>
+
+                {/* Right side: Next model button */}
                 <button
                   onClick={nextModel}
-                  className=" z-12 p-3 rounded-full bg-gray-600 hover:bg-purple-500 transition-all shadow-lg hover:scale-110 mt-10"
+                  className="z-12 p-4 rounded-full bg-gray-700 hover:bg-purple-500 transition-all 
+    shadow-lg hover:scale-110 hover:shadow-[0_0_20px_rgba(168,85,247,0.5)]"
                 >
-                  <ChevronRight className="w-6 h-6 text-white" />
+                  <ChevronRight className="w-7 h-7 text-white" />
                 </button>
               </div>
-
-              {/* Info + buttons row */}
+              <p className="mt-4 leading-snug text-base md:text-lg max-w-2xl 
+    bg-gradient-to-r from-purple-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent 
+    drop-shadow-[0_0_10px_rgba(147,51,234,0.3)]">{m.description}</p>
             </motion.div>
           </section>
         ))}

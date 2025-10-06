@@ -1,4 +1,3 @@
-
 "use client";
 import { useRef, useState, useEffect } from "react";
 import {
@@ -11,7 +10,11 @@ import {
   Palette,
   RefreshCw,
   Sparkles,
+  ArrowLeft,
 } from "lucide-react";
+import { div } from "framer-motion/client";
+import Link from "next/link";
+import Mainpage from "../Mainpage/page";
 
 export default function BlackBoard() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -59,7 +62,7 @@ export default function BlackBoard() {
     setRedoStack([]);
   };
 
-  const startDrawing = (e:React.MouseEvent<HTMLCanvasElement>) => {
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!ctxRef.current) return;
     ctxRef.current.beginPath();
     ctxRef.current.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
@@ -94,8 +97,8 @@ export default function BlackBoard() {
   const undo = () => {
     if (history.length === 0 || !canvasRef.current || !ctxRef.current) return;
     setRedoStack((prev) =>
-  canvasRef.current ? [...prev, canvasRef.current.toDataURL()] : prev
-);
+      canvasRef.current ? [...prev, canvasRef.current.toDataURL()] : prev
+    );
 
     const newHistory = history.slice(0, -1);
     setHistory(newHistory);
@@ -128,10 +131,9 @@ export default function BlackBoard() {
     if (redoStack.length === 0 || !ctxRef.current || !canvasRef.current) return;
     const restoredState = redoStack[redoStack.length - 1];
     setRedoStack(redoStack.slice(0, -1));
-   setRedoStack((prev) =>
-  canvasRef.current ? [...prev, canvasRef.current.toDataURL()] : prev
-);
-
+    setRedoStack((prev) =>
+      canvasRef.current ? [...prev, canvasRef.current.toDataURL()] : prev
+    );
 
     const img = new Image();
     img.src = restoredState;
@@ -171,6 +173,13 @@ export default function BlackBoard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col items-center justify-center p-4 sm:p-8">
+      
+        <div className="w-full">
+          <Link href={"Mainpage"}>
+          <ArrowLeft className="size-9" />
+          </Link>
+        </div>
+      
       <div className="mb-6 text-center">
         <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 flex items-center justify-center gap-3">
           <Sparkles className="w-8 h-8 text-purple-400 animate-pulse" />

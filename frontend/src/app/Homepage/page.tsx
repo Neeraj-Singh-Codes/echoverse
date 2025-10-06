@@ -106,12 +106,13 @@ const LandingPage = () => {
             naturally through voice and chat.
           </p>
 
-          {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
+            <Link href={'Signup'}>
             <button className="bg-gradient-to-r from-purple-500 to-blue-500 px-8 py-4 rounded-full text-lg font-semibold hover:from-purple-600 hover:to-blue-600 transition-all transform hover:scale-105 flex items-center justify-center group">
               Start Conversation
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
+            </Link>
             <Link href={"/Signin"}>
               <button
                 onClick={toggleDemo}

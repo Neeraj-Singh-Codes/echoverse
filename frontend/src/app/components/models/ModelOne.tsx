@@ -73,7 +73,7 @@ const ModelOne = ({ isSpeakingRef, startRecognition }: ModelOneProps) => {
   return (
     <div className="flex flex-col items-center w-full max-w-[600px] h-[600px]">
       <Spline
-        scene="https://prod.spline.design/FNWgmbbMs-4s6fp2/scene.splinecode"
+        scene="https://prod.spline.design/5afuBa4SySGVP6Lu/scene.splinecode"
         className="w-full h-full object-contain"
       />
     </div>
