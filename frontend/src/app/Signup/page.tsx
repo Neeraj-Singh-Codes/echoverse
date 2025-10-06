@@ -40,7 +40,7 @@ const SignupForm = () => {
 
     try {
       let response = await axios.post(
-        "http://localhost:8000/api/auth/signUp",
+        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/signUp`,
         formData,
         { withCredentials: true }
       );

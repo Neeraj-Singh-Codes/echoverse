@@ -52,7 +52,7 @@ const Mainpage = () => {
   const getGeminiResponse = async (command: string) => {
     try {
       const result = await axios.post(
-        "http://localhost:8000/api/user/askToAssistant",
+        `${process.env.NEXT_PUBLIC_API_URL}/api/user/askToAssistant`,
         { command },
         { withCredentials: true }
       );
@@ -66,7 +66,7 @@ const Mainpage = () => {
   const sendMessageToAI = async (message: string): Promise<string> => {
     try {
       const res = await axios.post(
-        "http://localhost:8000/api/user/askToAssistant",
+        `${process.env.NEXT_PUBLIC_API_URL}/api/user/askToAssistant`,
         { command: message },
         { withCredentials: true }
       );
@@ -82,7 +82,7 @@ const Mainpage = () => {
 
   const logout = async () => {
     try {
-      const res = await axios.get("http://localhost:8000/api/auth/logout", {
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, {
         withCredentials: true,
       });
       return res.data.response || "No response";
@@ -117,7 +117,7 @@ const Mainpage = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await axios.get("http://localhost:8000/api/user/current", {
+        const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/user/current`, {
           withCredentials: true,
         });
         setUser(res.data);

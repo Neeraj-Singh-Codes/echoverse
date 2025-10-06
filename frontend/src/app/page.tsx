@@ -10,7 +10,7 @@ async function getCurrentUser() {
   if (!token) return null;
 
   try {
-    const res = await fetch("http://localhost:8000/api/user/current", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/current`, {
       headers: { cookie: `token=${token}` },
       cache: "no-store",
     });

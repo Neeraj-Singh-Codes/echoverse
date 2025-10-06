@@ -34,7 +34,7 @@ const SigninForm = () => {
     // Add your signup logic here (e.g., API call)
     try {
       let response = await axios.post(
-        "http://localhost:8000/api/auth/signIn",
+        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/signIn`,
         formData,
         { withCredentials: true }
       );

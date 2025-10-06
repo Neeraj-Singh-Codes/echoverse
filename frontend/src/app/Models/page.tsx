@@ -46,7 +46,7 @@ const Models = () => {
   const handleSelect = async () => {
     try {
       await axios.put(
-        "http://localhost:8000/api/user/assistant",
+        `${process.env.NEXT_PUBLIC_API_URL}/api/user/assistant`,
         { assistantImage: avatars[index].image },
         { withCredentials: true }
       );

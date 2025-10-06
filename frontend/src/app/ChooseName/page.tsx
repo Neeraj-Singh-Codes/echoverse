@@ -15,7 +15,7 @@ const ChooseName = () => {
     const fetchAssistant = async () => {
       try {
         const res = await axios.get(
-          "http://localhost:8000/api/user/assistant1",
+          `${process.env.NEXT_PUBLIC_API_URL}/api/user/assistant1`,
           {
             withCredentials: true,
           }
@@ -33,7 +33,7 @@ const ChooseName = () => {
     if (!name.trim()) return;
     try {
       await axios.put(
-        "http://localhost:8000/api/user/assistant",
+        `${process.env.NEXT_PUBLIC_API_URL}/api/user/assistant`,
         { assistantName: name.trim() },
         { withCredentials: true }
       );
