@@ -82,9 +82,12 @@ const Mainpage = () => {
 
   const logout = async () => {
     try {
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, {
-        withCredentials: true,
-      });
+      const res = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`,
+        {
+          withCredentials: true,
+        }
+      );
       return res.data.response || "No response";
     } catch (error) {
       console.error(error);
@@ -117,9 +120,12 @@ const Mainpage = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/user/current`, {
-          withCredentials: true,
-        });
+        const res = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/user/current`,
+          {
+            withCredentials: true,
+          }
+        );
         setUser(res.data);
       } catch (err: any) {
         console.log(err.response?.data || err.message);
@@ -229,17 +235,18 @@ const Mainpage = () => {
     const { type = "general", userInput = "", response = "" } = data || {};
     lastSpokenRef.current = response.toLowerCase();
 
-    // Model-specific speak
-    switch (user.assistantImage) {
-      case "/model1.jpg":
-        modelOneSpeak(response, isSpeakingRef, () => safeRecognition());
-        break;
-      case "/model2.png":
-        modelTwoSpeak(response, isSpeakingRef, () => safeRecognition());
-        break;
-      case "/model3.jpg":
-        modelThreeSpeak(response, isSpeakingRef, () => safeRecognition());
-        break;
+    if (!chatOpen) {
+      switch (user.assistantImage) {
+        case "/model1.jpg":
+          modelOneSpeak(response, isSpeakingRef, () => safeRecognition());
+          break;
+        case "/model2.png":
+          modelTwoSpeak(response, isSpeakingRef, () => safeRecognition());
+          break;
+        case "/model3.jpg":
+          modelThreeSpeak(response, isSpeakingRef, () => safeRecognition());
+          break;
+      }
     }
 
     // Example: open URLs

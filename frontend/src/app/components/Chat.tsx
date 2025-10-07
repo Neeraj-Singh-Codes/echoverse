@@ -136,7 +136,6 @@
 
 // export default Chat;
 
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -149,7 +148,9 @@ interface ChatModalProps {
 }
 
 const Chat = ({ isOpen, onClose, onSend }: ChatModalProps) => {
-  const [messages, setMessages] = useState<{ role: string; text: string }[]>([]);
+  const [messages, setMessages] = useState<{ role: string; text: string }[]>(
+    []
+  );
   const [input, setInput] = useState("");
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isWaiting, setIsWaiting] = useState(false); // <- waiting flag
@@ -165,11 +166,27 @@ const Chat = ({ isOpen, onClose, onSend }: ChatModalProps) => {
   if (!isOpen) return null;
 
   // 🔊 speak text using SpeechSynthesis API
+  // 🔊 speak text using SpeechSynthesis API (chat voice only)
   const speak = (text: string) => {
     if (!soundEnabled) return;
+
+    const synth = window.speechSynthesis;
+    const voices = synth.getVoices();
+
+    // Try to find an en-US voice specifically for chat
+    const chatVoice =
+      voices.find((v) => v.lang === "en-US" && v.name.includes("Female")) ||
+      voices.find((v) => v.lang === "en-US") ||
+      voices[0];
+
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "en-US"; // change to "hi-IN" for Hindi
-    window.speechSynthesis.speak(utterance);
+    utterance.lang = "en-US";
+    utterance.voice = chatVoice;
+    utterance.rate = 1.05;
+    utterance.pitch = 1.0;
+
+    synth.cancel(); // prevent overlapping with model speech
+    synth.speak(utterance);
   };
 
   // Handle sending message
@@ -183,9 +200,10 @@ const Chat = ({ isOpen, onClose, onSend }: ChatModalProps) => {
     setIsWaiting(true); // start waiting for AI response
 
     try {
-      const response = await onSend(userMsg.text);
+      const response = await onSend(input);
       const botMsg = { role: "assistant", text: response };
       setMessages((prev) => [...prev, botMsg]);
+      speak(response);
     } finally {
       setIsWaiting(false); // done waiting
     }
@@ -264,7 +282,9 @@ const Chat = ({ isOpen, onClose, onSend }: ChatModalProps) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             className="flex-1 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 focus:outline-none"
-            placeholder={isWaiting ? "Waiting for AI..." : "Type your message..."}
+            placeholder={
+              isWaiting ? "Waiting for AI..." : "Type your message..."
+            }
             disabled={isWaiting} // disable input while waiting
           />
           <button
