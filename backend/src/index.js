@@ -13,7 +13,7 @@ const app = express();
 const port = process.env.PORT;
 app.use(
   cors({
-    origin: "https://echoverse-dxh5.onrender.com",
+    origin: ["https://echoverse-dxh5.onrender.com","http://localhost:3000"],
     credentials: true, // very important
   })
 );
