@@ -32,6 +32,11 @@ const SignupForm = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (formData.password.length < 8) {
+    toast.error("Password must be at least 8 characters long!");
+    return;
+    }
+
 
     if (formData.password !== formData.confirmPassword) {
       toast.error("Passwords do not match!");
