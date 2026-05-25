@@ -14,9 +14,13 @@ const app = express();
 const port = process.env.PORT;
 app.use(
   cors({
-    origin: ["https://echoverse-dxh5.onrender.com","http://localhost:3000"],
+    origin: [
+      "https://echoverse-dxh5.onrender.com",
+      "http://localhost:3000",
+      "echoverse-assistant.vercel.app",
+    ],
     credentials: true, // very important
-  })
+  }),
 );
 
 app.use(express.json());
@@ -24,7 +28,7 @@ app.use(cookieParser());
 
 app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
-app.use('/api/healthcheck',healthcheckrouter)
+app.use("/api/healthcheck", healthcheckrouter);
 
 connectDB().then(() => {
   app.listen(port || 5001, () => {
