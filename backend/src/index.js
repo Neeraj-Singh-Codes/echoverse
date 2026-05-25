@@ -6,6 +6,7 @@ import cors from "cors";
 import authRouter from "./routes/authRoutes.js";
 import userRouter from "./routes/userRoute.js";
 import geminiResponse from "./gemini.js";
+import healthcheckrouter from "./routes/healthcheckRoute.js";
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use(cookieParser());
 
 app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
+app.use('/api/healthcheck',healthcheckrouter)
 
 connectDB().then(() => {
   app.listen(port || 5001, () => {
