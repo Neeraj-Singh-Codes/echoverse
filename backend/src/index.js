@@ -16,8 +16,8 @@ app.use(
   cors({
     origin: [
       "https://echoverse-dxh5.onrender.com",
+      "https://echoverse-assistant.vercel.app",
       "http://localhost:3000",
-      "echoverse-assistant.vercel.app",
     ],
     credentials: true, // very important
   }),
