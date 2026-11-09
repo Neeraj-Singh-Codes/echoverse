@@ -2,27 +2,25 @@
 
 import Spline from "@splinetool/react-spline";
 import { MutableRefObject } from "react";
+import { universalSpeak } from "./speechHelper";
 
 // ----------------- Speech function -----------------
 export const modelOneSpeak = (
   text: string,
   isSpeakingRef: MutableRefObject<boolean>,
-  startRecognition: () => void
+  startRecognition?: () => void,
+  onFinish?: () => void
 ) => {
-  if (!text) return;
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "en-US";
-  utterance.pitch = 1;
-  utterance.rate = 1;
-
-  utterance.onend = () => {
-    isSpeakingRef.current = false;
-    startRecognition();
-  };
-
-  isSpeakingRef.current = true;
-  speechSynthesis.speak(utterance);
+  universalSpeak({
+    text,
+    lang: "en-US",
+    voiceKeywords: ["natural", "google us", "samantha", "david", "zira", "english"],
+    pitch: 1.0,
+    rate: 1.0,
+    isSpeakingRef,
+    startRecognition,
+    onFinish,
+  });
 };
 
 // ----------------- Props Interface -----------------

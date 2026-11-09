@@ -134,3 +134,50 @@ export const askToAssistant = async (req, res) => {
     return res.status(400).json({ response: "Ask Again! ", error });
   }
 };
+
+export const transcribeAudio = async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ message: "No audio file provided" });
+    }
+
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ message: "GROQ_API_KEY is not configured" });
+    }
+
+    const formData = new FormData();
+    const fileBlob = new Blob([req.file.buffer], {
+      type: req.file.mimetype || "audio/webm",
+    });
+    formData.append("file", fileBlob, "recording.webm");
+    formData.append("model", "whisper-large-v3-turbo");
+    formData.append("response_format", "json");
+
+    const groqResponse = await fetch(
+      "https://api.groq.com/openai/v1/audio/transcriptions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: formData,
+      }
+    );
+
+    if (!groqResponse.ok) {
+      const errText = await groqResponse.text();
+      console.error("[Groq Whisper Error]:", errText);
+      return res.status(groqResponse.status).json({
+        message: "Transcription failed",
+        details: errText,
+      });
+    }
+
+    const result = await groqResponse.json();
+    return res.status(200).json({ text: result.text || "" });
+  } catch (error) {
+    console.error("[Transcribe Error]:", error);
+    return res.status(500).json({ message: "Transcription error", error: error.message });
+  }
+};

@@ -1,38 +1,24 @@
 "use client";
 
 import Spline from "@splinetool/react-spline";
+import { universalSpeak } from "./speechHelper";
 
 export const modelTwoSpeak = (
   text: string,
   isSpeakingRef: React.MutableRefObject<boolean>,
-  startRecognition: () => void
+  startRecognition?: () => void,
+  onFinish?: () => void
 ) => {
-  if (!text) return;
-  speechSynthesis.cancel();
-  if ((window as any).speechRecognitionInstance) {
-    try {
-      (window as any).speechRecognitionInstance.stop();
-    } catch {}
-  }
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "hi-IN";
-  utterance.pitch = 0.9;
-  utterance.rate = 0.95;
-
-  const voices = speechSynthesis.getVoices();
-  const hindiVoice =
-    voices.find((v) => v.lang === "hi-IN") ||
-    voices.find((v) => v.name.toLowerCase().includes("hindi"));
-  if (hindiVoice) utterance.voice = hindiVoice;
-
-  utterance.onend = () => {
-    isSpeakingRef.current = false;
-    startRecognition();
-  };
-
-  isSpeakingRef.current = true;
-  speechSynthesis.speak(utterance);
+  universalSpeak({
+    text,
+    lang: "hi-IN",
+    voiceKeywords: ["hindi", "kalpana", "hemant", "lekha", "neel", "हिन्दी", "india"],
+    pitch: 0.9,
+    rate: 0.95,
+    isSpeakingRef,
+    startRecognition,
+    onFinish,
+  });
 };
 
 const ModelTwo = ({

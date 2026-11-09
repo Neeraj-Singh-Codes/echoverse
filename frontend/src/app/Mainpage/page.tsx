@@ -7,7 +7,7 @@ import ModelOne, { modelOneSpeak } from "../components/models/ModelOne";
 import ModelTwo, { modelTwoSpeak } from "../components/models/ModelTwo";
 import ModelThree, { modelThreeSpeak } from "../components/models/Modelthree";
 import Chat from "../components/Chat";
-import { MessageSquareText } from "lucide-react";
+import { MessageSquareText, Mic, MicOff } from "lucide-react";
 import BubbleMenu from "../Animations/BubbleMenu";
 import TrueFocus from "../Animations/TrueFocus";
 import { useRouter } from "next/navigation";
@@ -38,6 +38,7 @@ const Mainpage = () => {
   const [chatOpen, setChatOpen] = useState(false);
   const [userText, setUserText] = useState("");
   const [aiText, setAiText] = useState("");
+  const [isRecordingGroq, setIsRecordingGroq] = useState(false);
 
   const isSpeakingRef = useRef(false);
   const recognitionRef = useRef<any>(null);
@@ -45,6 +46,19 @@ const Mainpage = () => {
   const lastSpokenRef = useRef<string>("");
   const restartTimeout = useRef<NodeJS.Timeout | null>(null);
   const errorCountRef = useRef(0);
+
+  // Enhanced voice state refs
+  const isAwakeRef = useRef(false);
+  const isProcessingRef = useRef(false);
+  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const awakeExpireTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const accumulatedCommandRef = useRef<string>("");
+
+  // Groq Whisper MediaRecorder refs
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const activeStreamRef = useRef<MediaStream | null>(null);
 
   const router = useRouter();
 
@@ -96,25 +110,206 @@ const Mainpage = () => {
   };
 
   // ---------- Safe Recognition ----------
-  const safeRecognition = (delay = 1000) => {
+  const safeRecognition = (delay = 800) => {
     if (restartTimeout.current) clearTimeout(restartTimeout.current);
     restartTimeout.current = setTimeout(() => {
       if (
         !isSpeakingRef.current &&
+        !isProcessingRef.current &&
         !isRecognizingRef.current &&
+        !isRecordingGroq &&
         recognitionRef.current
       ) {
         try {
           recognitionRef.current.start();
-          console.log("[Recognition] Restart");
+          console.log("[Recognition] Restarted successfully");
         } catch (error: any) {
           if (error.name !== "InvalidStateError") {
-            console.error("[Recognition] start failed:", error);
+            console.warn("[Recognition] Start warning:", error.message || error);
           }
         }
       }
     }, delay);
   };
+
+  // Trigger command processing after silence or transcription
+  const executeCommand = async (commandToSend: string) => {
+    if (!commandToSend.trim() || isProcessingRef.current || isSpeakingRef.current) return;
+
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+    if (awakeExpireTimeoutRef.current) clearTimeout(awakeExpireTimeoutRef.current);
+
+    isAwakeRef.current = false;
+    isProcessingRef.current = true;
+    accumulatedCommandRef.current = "";
+
+    try {
+      if (recognitionRef.current && isRecognizingRef.current) {
+        recognitionRef.current.stop();
+        isRecognizingRef.current = false;
+        setListening(false);
+      }
+    } catch {}
+
+    setAiText("");
+    setUserText(commandToSend);
+
+    console.log("[Voice Execution] Sending command:", commandToSend);
+    const data = await getGeminiResponse(commandToSend);
+    console.log("[Assistant Response]:", data);
+
+    if (data && data.response) {
+      handleQuery(data);
+      setAiText(data.response);
+    } else {
+      isProcessingRef.current = false;
+      setUserText("");
+      safeRecognition(500);
+    }
+  };
+
+  // ----------------- Groq Whisper Universal Audio Recorder -----------------
+  const getSupportedMimeType = () => {
+    if (typeof window === "undefined" || typeof MediaRecorder === "undefined") return "";
+    const types = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/mp4",
+      "audio/aac",
+    ];
+    for (const t of types) {
+      if (MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return "";
+  };
+
+  const startGroqRecording = async () => {
+    if (isSpeakingRef.current || isProcessingRef.current) return;
+
+    try {
+      // Pause browser speech recognition if running
+      if (recognitionRef.current && isRecognizingRef.current) {
+        try {
+          recognitionRef.current.stop();
+          isRecognizingRef.current = false;
+          setListening(false);
+        } catch {}
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      activeStreamRef.current = stream;
+
+      const mimeType = getSupportedMimeType();
+      const options = mimeType ? { mimeType } : undefined;
+      const mediaRecorder = new MediaRecorder(stream, options);
+
+      audioChunksRef.current = [];
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        setIsRecordingGroq(false);
+        if (recordingTimeoutRef.current) clearTimeout(recordingTimeoutRef.current);
+
+        // Stop all audio tracks to release microphone
+        if (activeStreamRef.current) {
+          activeStreamRef.current.getTracks().forEach((track) => track.stop());
+          activeStreamRef.current = null;
+        }
+
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: mimeType || "audio/webm",
+        });
+
+        if (audioBlob.size < 1000) {
+          setUserText("");
+          safeRecognition(500);
+          return;
+        }
+
+        setUserText("⚡ Transcribing with Groq Whisper...");
+
+        try {
+          const formData = new FormData();
+          formData.append("audio", audioBlob, "recording.webm");
+
+          const response = await axios.post(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/user/transcribe`,
+            formData,
+            {
+              headers: { "Content-Type": "multipart/form-data" },
+              withCredentials: true,
+            }
+          );
+
+          const transcribed = (response.data?.text || "").trim();
+          if (transcribed) {
+            console.log("[Groq Whisper Transcription]:", transcribed);
+            executeCommand(transcribed);
+          } else {
+            setUserText("Could not understand audio. Try again!");
+            setTimeout(() => setUserText(""), 2000);
+            safeRecognition(500);
+          }
+        } catch (err: any) {
+          console.error("Groq Transcription failed:", err);
+          setUserText("Transcription error. Please try again.");
+          setTimeout(() => setUserText(""), 2500);
+          safeRecognition(500);
+        }
+      };
+
+      mediaRecorder.start(250);
+      setIsRecordingGroq(true);
+      setUserText("🔴 Listening via Groq Whisper... (click to stop)");
+
+      // Auto-stop after 10 seconds max if user doesn't tap
+      recordingTimeoutRef.current = setTimeout(() => {
+        stopGroqRecording();
+      }, 10000);
+    } catch (err: any) {
+      console.error("Microphone access denied or error:", err);
+      setUserText("Microphone permission required!");
+      setTimeout(() => setUserText(""), 3000);
+    }
+  };
+
+  const stopGroqRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
+    }
+  };
+
+  const toggleVoiceMode = () => {
+    if (isRecordingGroq) {
+      stopGroqRecording();
+    } else {
+      startGroqRecording();
+    }
+  };
+
+  // Keyboard shortcut: Spacebar to toggle voice when not in text input
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" && e.target instanceof HTMLElement) {
+        const tagName = e.target.tagName.toLowerCase();
+        if (tagName !== "input" && tagName !== "textarea" && !chatOpen) {
+          e.preventDefault();
+          toggleVoiceMode();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isRecordingGroq, chatOpen]);
 
   // ---------- Fetch User ----------
   useEffect(() => {
@@ -142,15 +337,29 @@ const Mainpage = () => {
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
 
+    if (!SpeechRecognition) {
+      console.warn("Speech recognition is not supported in this browser.");
+      return;
+    }
+
     const recognition: any = new SpeechRecognition();
     recognition.continuous = true;
-    recognition.lang = "en-US";
-    recognitionRef.current = recognition;
+    recognition.interimResults = true; // Stream words in real-time
 
+    // Match language to selected model
+    if (user.assistantImage === "/model2.png") {
+      recognition.lang = "hi-IN";
+    } else if (user.assistantImage === "/model3.jpg") {
+      recognition.lang = "en-GB";
+    } else {
+      recognition.lang = "en-US";
+    }
+
+    recognitionRef.current = recognition;
     (window as any).speechRecognitionInstance = recognition;
 
     recognition.onstart = () => {
-      console.log("[Recognition] Started");
+      console.log("[Recognition] Started in language:", recognition.lang);
       isRecognizingRef.current = true;
       setListening(true);
     };
@@ -160,10 +369,8 @@ const Mainpage = () => {
       isRecognizingRef.current = false;
       setListening(false);
 
-      if (!isSpeakingRef.current) {
-        safeRecognition(800);
-      } else {
-        console.log("[Recognition] Skipped restart (still speaking)");
+      if (!isSpeakingRef.current && !isProcessingRef.current) {
+        safeRecognition(600);
       }
     };
 
@@ -171,61 +378,122 @@ const Mainpage = () => {
       console.warn("[Recognition] Error:", e.error);
       isRecognizingRef.current = false;
       setListening(false);
-      if (e.error !== "aborted" && !isSpeakingRef.current) {
+      if (e.error !== "aborted" && !isSpeakingRef.current && !isProcessingRef.current) {
         errorCountRef.current++;
-        const backoff = Math.min(5000, 1000 * errorCountRef.current);
+        const backoff = Math.min(4000, 800 * errorCountRef.current);
         safeRecognition(backoff);
       }
     };
 
     recognition.onresult = async (e: any) => {
-      if (isSpeakingRef.current) {
-        console.log("[Recognition] Ignored because speaking");
+      if (isSpeakingRef.current || isProcessingRef.current) {
         return;
       }
 
-      const transcript = e.results[e.results.length - 1][0].transcript
-        .trim()
-        .toLowerCase();
-      console.log("[Recognition] Heard:", transcript);
+      let interimTranscript = "";
+      let finalTranscript = "";
 
-      if (
-        lastSpokenRef.current &&
-        similarity(transcript, lastSpokenRef.current) > 0.7
-      ) {
-        console.log("[Recognition] Ignored echo");
-        return;
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const item = e.results[i];
+        if (item.isFinal) {
+          finalTranscript += item[0].transcript + " ";
+        } else {
+          interimTranscript += item[0].transcript;
+        }
       }
 
-      const hotword = new RegExp(`\\b${user.assistantName.toLowerCase()}\\b`);
-      if (hotword.test(transcript)) {
-        setAiText("");
-        setUserText(transcript);
-        recognition.stop();
-        isRecognizingRef.current = false;
-        setListening(false);
+      const rawTranscript = (finalTranscript || interimTranscript).trim();
+      if (!rawTranscript) return;
 
-        const data = await getGeminiResponse(transcript);
-        console.log("[Assistant Response]:", data);
-        handleQuery(data);
-        setAiText(data.response);
-        setUserText("");
+      const lowerTranscript = rawTranscript.toLowerCase();
+      console.log("[Recognition] Heard:", rawTranscript);
+
+      // Safe hotword regex escape
+      const assistantName = (user.assistantName || "").trim().toLowerCase();
+      const escapedHotword = assistantName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const hotwordRegex = escapedHotword ? new RegExp(`\\b${escapedHotword}\\b`, "i") : null;
+
+      // Check if user says the hotword
+      const containsHotword = hotwordRegex ? hotwordRegex.test(lowerTranscript) : false;
+
+      if (!isAwakeRef.current) {
+        // Not awake yet: check for wake word
+        if (containsHotword) {
+          console.log("[Wake Word Detected]:", assistantName);
+          isAwakeRef.current = true;
+
+          // Extract text spoken after the assistant's name
+          let commandAfterName = rawTranscript;
+          if (hotwordRegex) {
+            commandAfterName = rawTranscript.replace(hotwordRegex, "").trim();
+          }
+
+          if (commandAfterName.length > 0) {
+            // User spoke both the name AND command together (e.g. "Echo what is the weather")
+            accumulatedCommandRef.current = commandAfterName;
+            setUserText(commandAfterName);
+
+            // Wait 1.3s for user to finish speaking, then execute
+            if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+            silenceTimeoutRef.current = setTimeout(() => {
+              executeCommand(accumulatedCommandRef.current);
+            }, 1300);
+          } else {
+            // User just said the name (e.g. "Echo")
+            setUserText("Listening...");
+            accumulatedCommandRef.current = "";
+
+            // Keep listening for command for up to 7 seconds
+            if (awakeExpireTimeoutRef.current) clearTimeout(awakeExpireTimeoutRef.current);
+            awakeExpireTimeoutRef.current = setTimeout(() => {
+              if (isAwakeRef.current && !accumulatedCommandRef.current) {
+                console.log("[Wake timeout] No command heard, sleeping");
+                isAwakeRef.current = false;
+                setUserText("");
+              }
+            }, 7000);
+          }
+        }
+      } else {
+        // Already awake: capture full speech as the command
+        let cleanCommand = rawTranscript;
+        if (hotwordRegex) {
+          cleanCommand = rawTranscript.replace(hotwordRegex, "").trim() || rawTranscript;
+        }
+
+        if (cleanCommand.length > 0) {
+          accumulatedCommandRef.current = cleanCommand;
+          setUserText(cleanCommand);
+
+          // Reset awake expiration since user is actively speaking
+          if (awakeExpireTimeoutRef.current) clearTimeout(awakeExpireTimeoutRef.current);
+
+          // Wait 1.3s of silence before sending the complete sentence
+          if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+          silenceTimeoutRef.current = setTimeout(() => {
+            executeCommand(accumulatedCommandRef.current);
+          }, 1300);
+        }
       }
     };
 
     const fallBackCheck = setInterval(() => {
-      if (!isSpeakingRef.current && !isRecognizingRef.current) {
+      if (!isSpeakingRef.current && !isProcessingRef.current && !isRecognizingRef.current) {
         safeRecognition(500);
       }
-    }, 10000);
+    }, 8000);
 
-    safeRecognition();
+    safeRecognition(500);
 
     return () => {
-      recognition.stop();
+      try {
+        recognition.stop();
+      } catch {}
       setListening(false);
       isRecognizingRef.current = false;
       if (restartTimeout.current) clearTimeout(restartTimeout.current);
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+      if (awakeExpireTimeoutRef.current) clearTimeout(awakeExpireTimeoutRef.current);
       clearInterval(fallBackCheck);
     };
   }, [user]);
@@ -235,18 +503,30 @@ const Mainpage = () => {
     const { type = "general", userInput = "", response = "" } = data || {};
     lastSpokenRef.current = response.toLowerCase();
 
-    if (!chatOpen) {
+    const onSpeechFinish = () => {
+      setAiText("");
+      setUserText("");
+      isProcessingRef.current = false;
+      safeRecognition(400);
+    };
+
+    if (!chatOpen && response) {
       switch (user.assistantImage) {
         case "/model1.jpg":
-          modelOneSpeak(response, isSpeakingRef, () => safeRecognition());
+          modelOneSpeak(response, isSpeakingRef, () => safeRecognition(), onSpeechFinish);
           break;
         case "/model2.png":
-          modelTwoSpeak(response, isSpeakingRef, () => safeRecognition());
+          modelTwoSpeak(response, isSpeakingRef, () => safeRecognition(), onSpeechFinish);
           break;
         case "/model3.jpg":
-          modelThreeSpeak(response, isSpeakingRef, () => safeRecognition());
+          modelThreeSpeak(response, isSpeakingRef, () => safeRecognition(), onSpeechFinish);
+          break;
+        default:
+          onSpeechFinish();
           break;
       }
+    } else {
+      onSpeechFinish();
     }
 
     // Example: open URLs
@@ -453,21 +733,70 @@ const Mainpage = () => {
           Welcome, <span className="text-indigo-400">{user.name}</span>
         </h2>
 
-        <p className="text-gray-400 text-base mb-6">
+        <p className="text-gray-400 text-base mb-3">
           Say{" "}
           <span className="text-indigo-400 font-semibold">
             {user.assistantName}
           </span>{" "}
-          to wake me up.
+          or tap the mic / press <kbd className="px-2 py-0.5 text-xs bg-gray-800 border border-gray-700 rounded text-gray-300">Space</kbd> to talk.
         </p>
 
         {renderModel()}
 
-        <div className="flex items-center gap-4">
-          <span className={"flex items-center justify-centerrounded-full "}>
-            {!aiText && <img src="userVoice.gif" className="w-[200px]" />}
-            {aiText && <img src="aiVoice.gif" className="w-[200px]" />}
-          </span>
+        {/* Live Speech Subtitle & Status */}
+        {userText && (
+          <div className="mt-3 px-5 py-2 rounded-full bg-indigo-950/90 border border-indigo-500/60 text-indigo-200 text-sm animate-pulse max-w-lg shadow-lg shadow-indigo-950/50 backdrop-blur-md">
+            🎤 {userText}
+          </div>
+        )}
+
+        <div className="flex flex-col items-center gap-2 mt-4">
+          <button
+            onClick={toggleVoiceMode}
+            title={isRecordingGroq ? "Click to finish speaking" : "Click to speak with Groq Whisper"}
+            className={`group relative flex items-center justify-center p-2 rounded-full transition-all duration-300 ${
+              isRecordingGroq
+                ? "ring-4 ring-red-500/80 scale-105 shadow-[0_0_30px_rgba(239,68,68,0.5)]"
+                : "hover:scale-105 active:scale-95"
+            } focus:outline-none`}
+          >
+            {!aiText && (
+              <img
+                src="/userVoice.gif"
+                alt="Voice listening wave"
+                className="w-[180px] drop-shadow-[0_0_15px_rgba(99,102,241,0.3)] cursor-pointer"
+              />
+            )}
+            {aiText && (
+              <img
+                src="/aiVoice.gif"
+                alt="AI speaking wave"
+                className="w-[180px] drop-shadow-[0_0_20px_rgba(168,85,247,0.4)]"
+              />
+            )}
+            <div
+              className={`absolute bottom-1 right-1 p-2.5 rounded-full text-white shadow-md transition ${
+                isRecordingGroq
+                  ? "bg-red-600 animate-bounce shadow-red-500/50"
+                  : listening
+                  ? "bg-indigo-600 hover:bg-indigo-500"
+                  : "bg-gray-700 hover:bg-gray-600"
+              }`}
+            >
+              {isRecordingGroq ? (
+                <Mic className="size-4 animate-pulse text-white" />
+              ) : listening ? (
+                <Mic className="size-4 animate-pulse text-white" />
+              ) : (
+                <MicOff className="size-4 text-gray-300" />
+              )}
+            </div>
+          </button>
+          {isRecordingGroq && (
+            <span className="text-xs text-red-400 font-medium animate-pulse">
+              🔴 Recording with Groq Whisper (tap again or space to send)
+            </span>
+          )}
         </div>
       </main>
 

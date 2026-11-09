@@ -1,25 +1,24 @@
 "use client";
 
 import Spline from "@splinetool/react-spline";
+import { universalSpeak } from "./speechHelper";
 
 export const modelThreeSpeak = (
   text: string,
   isSpeakingRef: React.MutableRefObject<boolean>,
-  startRecognition: () => void
+  startRecognition?: () => void,
+  onFinish?: () => void
 ) => {
-  if (!text) return;
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "en-GB";
-  utterance.pitch = 1.3;
-  utterance.rate = 0.95;
-
-  utterance.onend = () => {
-    isSpeakingRef.current = false;
-    startRecognition();
-  };
-
-  isSpeakingRef.current = true;
-  speechSynthesis.speak(utterance);
+  universalSpeak({
+    text,
+    lang: "en-GB",
+    voiceKeywords: ["british", "uk", "daniel", "oliver", "george", "serena", "hazel"],
+    pitch: 1.3,
+    rate: 0.95,
+    isSpeakingRef,
+    startRecognition,
+    onFinish,
+  });
 };
 
 const ModelThree = ({ isSpeakingRef, startRecognition }: { isSpeakingRef: any; startRecognition: any }) => {
