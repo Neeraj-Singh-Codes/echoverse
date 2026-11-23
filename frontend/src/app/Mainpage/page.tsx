@@ -11,6 +11,7 @@ import { MessageSquareText, Mic, MicOff } from "lucide-react";
 import BubbleMenu from "../Animations/BubbleMenu";
 import TrueFocus from "../Animations/TrueFocus";
 import { useRouter } from "next/navigation";
+import { getApiUrl } from "../utils/apiUrl";
 
 const Mainpage = () => {
   const [user, setUser] = useState<any>(null);
@@ -54,7 +55,7 @@ const Mainpage = () => {
       const formData = new FormData();
       formData.append("audio", audioBlob, "recording.webm");
       const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/user/transcribe`,
+        `${getApiUrl()}/api/user/transcribe`,
         formData,
         {
           headers: { "Content-Type": "multipart/form-data" },
@@ -72,7 +73,7 @@ const Mainpage = () => {
   const getGeminiResponse = async (command: string) => {
     try {
       const result = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/user/askToAssistant`,
+        `${getApiUrl()}/api/user/askToAssistant`,
         { command },
         { withCredentials: true }
       );
@@ -86,7 +87,7 @@ const Mainpage = () => {
   const sendMessageToAI = async (message: string): Promise<string> => {
     try {
       const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/user/askToAssistant`,
+        `${getApiUrl()}/api/user/askToAssistant`,
         { command: message },
         { withCredentials: true }
       );
@@ -106,7 +107,7 @@ const Mainpage = () => {
   const logout = async () => {
     try {
       const res = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`,
+        `${getApiUrl()}/api/auth/logout`,
         {
           withCredentials: true,
         }
@@ -294,7 +295,7 @@ const Mainpage = () => {
     const fetchUser = async () => {
       try {
         const res = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/user/current`,
+          `${getApiUrl()}/api/user/current`,
           {
             withCredentials: true,
           }
@@ -351,7 +352,7 @@ const Mainpage = () => {
           modelThreeSpeak(response, isSpeakingRef, undefined, onSpeechFinish);
           break;
         default:
-          onSpeechFinish();
+          modelOneSpeak(response, isSpeakingRef, undefined, onSpeechFinish);
           break;
       }
     } else {

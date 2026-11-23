@@ -4,13 +4,19 @@ import LandingPage from "./Homepage/page";
 import { cookies } from "next/headers";
 
 async function getCurrentUser() {
-  const cookieStore= cookies() as any;
+  const cookieStore = cookies() as any;
   const token = cookieStore.get("token")?.value;
 
   if (!token) return null;
 
+  const apiUrl =
+    process.env.NEXT_PUBLIC_API_URL ||
+    (process.env.NODE_ENV === "production"
+      ? "https://echoverse-vcvg.onrender.com"
+      : "http://localhost:8000");
+
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/current`, {
+    const res = await fetch(`${apiUrl}/api/user/current`, {
       headers: { cookie: `token=${token}` },
       cache: "no-store",
     });

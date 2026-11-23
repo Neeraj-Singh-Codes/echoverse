@@ -8,6 +8,7 @@ import Spline from "@splinetool/react-spline";
 import axios from "axios";
 import toast, { Toaster } from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import { getApiUrl } from "../utils/apiUrl";
 
 const SigninForm = () => {
   const router = useRouter();
@@ -34,7 +35,7 @@ const SigninForm = () => {
     // Add your signup logic here (e.g., API call)
     try {
       let response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/signIn`,
+        `${getApiUrl()}/api/auth/signIn`,
         formData,
         { withCredentials: true }
       );

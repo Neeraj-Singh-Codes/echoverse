@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { getApiUrl } from "../utils/apiUrl";
 
 const ChooseName = () => {
   const [name, setName] = useState("");
@@ -15,7 +16,7 @@ const ChooseName = () => {
     const fetchAssistant = async () => {
       try {
         const res = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/user/assistant1`,
+          `${getApiUrl()}/api/user/assistant1`,
           {
             withCredentials: true,
           }
@@ -33,7 +34,7 @@ const ChooseName = () => {
     if (!name.trim()) return;
     try {
       await axios.put(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/user/assistant`,
+        `${getApiUrl()}/api/user/assistant`,
         { assistantName: name.trim() },
         { withCredentials: true }
       );

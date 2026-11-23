@@ -8,6 +8,7 @@ import toast, { Toaster } from "react-hot-toast";
 import axios from "axios";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { getApiUrl } from "../utils/apiUrl";
 
 const SignupForm = () => {
   const router = useRouter();
@@ -45,7 +46,7 @@ const SignupForm = () => {
 
     try {
       let response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/signUp`,
+        `${getApiUrl()}/api/auth/signUp`,
         formData,
         { withCredentials: true }
       );

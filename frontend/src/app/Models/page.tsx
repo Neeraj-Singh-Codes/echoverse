@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import axios from "axios";
 import Image from "next/image";
 import { ChevronRight } from "lucide-react"; // icon for next
+import { getApiUrl } from "../utils/apiUrl";
 
 const avatars = [
   {
@@ -46,7 +47,7 @@ const Models = () => {
   const handleSelect = async () => {
     try {
       await axios.put(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/user/assistant`,
+        `${getApiUrl()}/api/user/assistant`,
         { assistantImage: avatars[index].image },
         { withCredentials: true }
       );

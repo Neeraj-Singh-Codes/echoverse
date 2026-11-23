@@ -48,19 +48,31 @@ export const askToAssistant = async (req, res) => {
   try {
     const { command } = req.body;
     const user = await User.findById(req.userId);
-    const userName = user.name;
-    const assistantName = user.assistantName;
+    const userName = user?.name || "User";
+    const assistantName = user?.assistantName || "Assistant";
     const result = await geminiResponse(command, assistantName, userName);
     const jsonMatch = typeof result === "string" ? result.match(/{[\s\S]*}/) : null;
 
-    if (!jsonMatch) {
+    let gemResult = null;
+    if (jsonMatch) {
+      try {
+        gemResult = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        console.warn("[JSON Parse Warning]:", parseError.message);
+      }
+    }
+
+    if (!gemResult || !gemResult.response) {
+      const cleanResponse =
+        typeof result === "string" && result.trim()
+          ? result.replace(/```json|```/g, "").trim()
+          : "Sorry, I couldn't understand that. Could you please rephrase?";
       return res.json({
         type: "general",
         userInput: command,
-        response: "Sorry, I couldn't understand that. Could you please rephrase?",
+        response: cleanResponse,
       });
     }
-    const gemResult = JSON.parse(jsonMatch[0]);
     if (gemResult.userInput?.toLowerCase().includes("open blackboard")) {
       gemResult.type = "open-blackboard";
       gemResult.response = "Opening Blackboard for you!";

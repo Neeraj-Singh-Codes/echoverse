@@ -26,15 +26,17 @@ export const signUp = async (req, res) => {
 
     const token = generateToken(newUser._id);
 
+    const isProduction = process.env.NODE_ENV === "production";
     res.cookie("token", token, {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: "None",
-      secure: true
+      sameSite: isProduction ? "None" : "Lax",
+      secure: isProduction,
     });
 
     res.status(201).json({
       message: "User created",
+      token,
       user: { id: newUser._id, name, email },
     });
   } catch (error) {
@@ -58,15 +60,17 @@ export const login = async (req, res) => {
 
     const token = generateToken(user._id);
 
+    const isProduction = process.env.NODE_ENV === "production";
     res.cookie("token", token, {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: "None",
-      secure: true
+      sameSite: isProduction ? "None" : "Lax",
+      secure: isProduction,
     });
 
     res.status(200).json({
       message: "Login successful",
+      token,
       user: { id: user._id, name: user.name, email: user.email },
     });
   } catch (error) {
