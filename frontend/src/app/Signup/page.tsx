@@ -12,7 +12,6 @@ import { getApiUrl } from "../utils/apiUrl";
 
 const SignupForm = () => {
   const router = useRouter();
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -34,10 +33,9 @@ const SignupForm = () => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (formData.password.length < 8) {
-    toast.error("Password must be at least 8 characters long!");
-    return;
+      toast.error("Password must be at least 8 characters long!");
+      return;
     }
-
 
     if (formData.password !== formData.confirmPassword) {
       toast.error("Passwords do not match!");
@@ -50,7 +48,7 @@ const SignupForm = () => {
         formData,
         { withCredentials: true }
       );
-      if (response.status === 201 || 200) {
+      if (response.status === 201 || response.status === 200) {
         router.push("/Models");
       }
       toast.success("Account created successfully!");
@@ -61,28 +59,14 @@ const SignupForm = () => {
     }
   };
 
-  useEffect(() => {
-    const handleMouseMove = (e: any) => {
-      setMousePosition({ x: e.clientX, y: e.clientY });
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
-
   return (
     <div className="flex items-center justify-center min-h-screen p-4 bg-black">
       <div>
         <Toaster position="top-right" reverseOrder={false} />
       </div>
-      <div className="fixed inset-0 z-0">
+      <div className="fixed inset-0 z-0 pointer-events-none">
         <div
-          className="absolute w-96 h-96 bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-500 rounded-full blur-3xl opacity-20 animate-pulse"
-          style={{
-            left: mousePosition.x * 0.02 + "px",
-            top: mousePosition.y * 0.02 + "px",
-            transform: "translate(-50%, -50%)",
-          }}
+          className="absolute w-96 h-96 bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-500 rounded-full blur-3xl opacity-20 animate-pulse top-10 left-10"
         />
         <div
           className="absolute top-1/4 right-1/4 w-72 h-72 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-full blur-3xl opacity-15 animate-bounce"

@@ -1,7 +1,7 @@
 "use client";
 
+import React, { memo, MutableRefObject } from "react";
 import Spline from "@splinetool/react-spline";
-import { MutableRefObject } from "react";
 import { universalSpeak } from "./speechHelper";
 
 // ----------------- Speech function -----------------
@@ -30,15 +30,17 @@ interface ModelOneProps {
 }
 
 // ----------------- Component -----------------
-const ModelOne = ({ isSpeakingRef, startRecognition }: ModelOneProps) => {
+const ModelOne = memo(({ isSpeakingRef, startRecognition }: ModelOneProps) => {
   return (
-    <div className="flex flex-col items-center w-full max-w-[600px] h-[600px]">
+    <div className="flex flex-col items-center justify-center w-full max-w-[460px] h-[300px] md:h-[380px] relative pointer-events-auto select-none transition-all duration-300">
       <Spline
         scene="https://prod.spline.design/5afuBa4SySGVP6Lu/scene.splinecode"
         className="w-full h-full object-contain"
       />
     </div>
   );
-};
+});
+
+ModelOne.displayName = "ModelOne";
 
 export default ModelOne;

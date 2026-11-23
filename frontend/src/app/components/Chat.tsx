@@ -1,145 +1,7 @@
-// "use client";
-
-// import { useEffect, useRef, useState } from "react";
-// import { X, SendHorizonal } from "lucide-react";
-
-// interface ChatModalProps {
-//   isOpen: boolean;
-//   onClose: () => void;
-//   onSend: (message: string) => Promise<string>;
-// }
-
-// const Chat = ({ isOpen, onClose, onSend }: ChatModalProps) => {
-//   const [messages, setMessages] = useState<{ role: string; text: string }[]>(
-//     []
-//   );
-//   const [input, setInput] = useState("");
-//   const [soundEnabled, setSoundEnabled] = useState(true);
-
-//   // Ref to scroll to bottom
-//   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-
-//   // Auto-scroll when messages change
-//   useEffect(() => {
-//     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-//   }, [messages]);
-
-//   if (!isOpen) return null;
-
-//   // 🔊 speak text using SpeechSynthesis API
-//   const speak = (text: string) => {
-//     if (!soundEnabled) return;
-//     const utterance = new SpeechSynthesisUtterance(text);
-//     utterance.lang = "en-US"; // change to "hi-IN" for Hindi
-//     window.speechSynthesis.speak(utterance);
-//   };
-
-//   const handleSend = async () => {
-//     if (!input.trim()) return;
-//     const userMsg = { role: "user", text: input };
-//     setMessages((prev) => [...prev, userMsg]);
-//     setInput("");
-
-//     const response = await onSend(input);
-//     const botMsg = { role: "assistant", text: response };
-//     setMessages((prev) => [...prev, botMsg]);
-
-//     speak(response);
-//   };
-
-//   return (
-//     <div className="fixed inset-0 flex items-center justify-center z-50">
-//       {/* Blur background */}
-//       <div
-//         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-//         onClick={onClose}
-//       />
-
-//       {/* Chat window */}
-//       <div className="relative z-10 bg-gray-900 text-white w-[50%] h-[70%] rounded-2xl shadow-lg flex flex-col">
-//         {/* Header */}
-//         <div className="flex justify-between items-center px-6 py-4 border-b border-gray-700">
-//           <h2 className="text-lg font-semibold">Chat with AI</h2>
-//           <label className="swap cursor-pointer">
-//             <input
-//               type="checkbox"
-//               checked={soundEnabled}
-//               onChange={(e) => setSoundEnabled(e.target.checked)}
-//             />
-//             {/* volume on */}
-//             <svg
-//               className="swap-on fill-current"
-//               xmlns="http://www.w3.org/2000/svg"
-//               width="28"
-//               height="28"
-//               viewBox="0 0 24 24"
-//             >
-//               <path d="M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z" />
-//             </svg>
-//             {/* volume off */}
-//             <svg
-//               className="swap-off fill-current"
-//               xmlns="http://www.w3.org/2000/svg"
-//               width="28"
-//               height="28"
-//               viewBox="0 0 24 24"
-//             >
-//               <path d="M3,9H7L12,4V20L7,15H3V9M16.59,12L14,9.41L15.41,8L18,10.59L20.59,8L22,9.41L19.41,12L22,14.59L20.59,16L18,13.41L15.41,16L14,14.59L16.59,12Z" />
-//             </svg>
-//           </label>
-
-//           <X className="cursor-pointer" onClick={onClose} />
-//         </div>
-
-//         {/* Messages */}
-//         <div className="flex-1 overflow-y-auto space-y-3 px-6 py-4">
-//           {messages.map((msg, i) => (
-//             <div
-//               key={i}
-//               className={`p-2 rounded-lg max-w-[40%] ${
-//                 msg.role === "user"
-//                   ? "bg-indigo-600 ml-auto text-left"
-//                   : "bg-gray-700 mr-auto text-left"
-//               }`}
-//             >
-//               {msg.text}
-//             </div>
-//           ))}
-//           <div ref={messagesEndRef} />
-//         </div>
-
-//         {/* Input fixed at bottom */}
-//         <form
-//           onSubmit={(e) => {
-//             e.preventDefault();
-//             handleSend();
-//           }}
-//           className="flex items-center gap-2 border-t border-gray-700 px-4 py-3"
-//         >
-//           <input
-//             value={input}
-//             onChange={(e) => setInput(e.target.value)}
-//             className="flex-1 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 focus:outline-none"
-//             placeholder="Type your message..."
-//           />
-//           <button
-//             type="submit"
-//             className="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition"
-//           >
-//             <SendHorizonal className="text-white" />
-//           </button>
-//         </form>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default Chat;
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, SendHorizonal } from "lucide-react";
+import { X, SendHorizonal, Volume2, VolumeX, Sparkles, Bot, User } from "lucide-react";
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -147,154 +9,216 @@ interface ChatModalProps {
   onSend: (message: string) => Promise<string>;
 }
 
+const SUGGESTIONS = [
+  "Search Joey's pizza on maps",
+  "What is EchoVerse?",
+  "What time is it right now?",
+  "Open Blackboard for me",
+];
+
 const Chat = ({ isOpen, onClose, onSend }: ChatModalProps) => {
-  const [messages, setMessages] = useState<{ role: string; text: string }[]>(
-    []
-  );
+  const [messages, setMessages] = useState<{ role: string; text: string }[]>([]);
   const [input, setInput] = useState("");
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [isWaiting, setIsWaiting] = useState(false); // <- waiting flag
+  const [isWaiting, setIsWaiting] = useState(false);
 
-  // Ref to scroll to bottom
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   // Auto-scroll when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isWaiting]);
 
   if (!isOpen) return null;
 
-  // 🔊 speak text using SpeechSynthesis API
-  // 🔊 speak text using SpeechSynthesis API (chat voice only)
+  // Speak text using SpeechSynthesis API (chat voice only)
   const speak = (text: string) => {
-    if (!soundEnabled) return;
+    if (!soundEnabled || typeof window === "undefined" || !("speechSynthesis" in window)) return;
 
     const synth = window.speechSynthesis;
     const voices = synth.getVoices();
 
-    // Try to find an en-US voice specifically for chat
     const chatVoice =
-      voices.find((v) => v.lang === "en-US" && v.name.includes("Female")) ||
-      voices.find((v) => v.lang === "en-US") ||
+      voices.find((v) => v.lang.startsWith("en") && (v.name.includes("Natural") || v.name.includes("Female"))) ||
+      voices.find((v) => v.lang.startsWith("en")) ||
       voices[0];
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "en-US";
-    utterance.voice = chatVoice;
-    utterance.rate = 1.05;
+    if (chatVoice) utterance.voice = chatVoice;
+    utterance.rate = 1.0;
     utterance.pitch = 1.0;
 
-    synth.cancel(); // prevent overlapping with model speech
+    synth.cancel();
     synth.speak(utterance);
   };
 
-  // Handle sending message
-  const handleSend = async () => {
-    if (!input.trim() || isWaiting) return; // prevent sending if waiting
+  const handleSend = async (textToSend?: string) => {
+    const query = (textToSend || input).trim();
+    if (!query || isWaiting) return;
 
-    const userMsg = { role: "user", text: input };
+    const userMsg = { role: "user", text: query };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
-
-    setIsWaiting(true); // start waiting for AI response
+    setIsWaiting(true);
 
     try {
-      const response = await onSend(input);
+      const response = await onSend(query);
       const botMsg = { role: "assistant", text: response };
       setMessages((prev) => [...prev, botMsg]);
       speak(response);
+    } catch {
+      const errorMsg = { role: "assistant", text: "I'm having trouble thinking right now. Please try again." };
+      setMessages((prev) => [...prev, errorMsg]);
     } finally {
-      setIsWaiting(false); // done waiting
+      setIsWaiting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50">
-      {/* Blur background */}
+    <div className="fixed inset-0 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+      {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/70 backdrop-blur-md transition-opacity"
         onClick={onClose}
       />
 
-      {/* Chat window */}
-      <div className="relative z-10 bg-gray-900 text-white w-[50%] h-[70%] rounded-2xl shadow-lg flex flex-col">
+      {/* Glassmorphic Cyber Modal */}
+      <div className="relative z-10 bg-zinc-950/90 border border-zinc-800/80 text-white w-full max-w-2xl h-[75vh] max-h-[700px] rounded-3xl shadow-[0_0_50px_rgba(99,102,241,0.15)] flex flex-col overflow-hidden backdrop-blur-2xl">
         {/* Header */}
-        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold">Chat with AI</h2>
-          <label className="swap cursor-pointer">
-            <input
-              type="checkbox"
-              checked={soundEnabled}
-              onChange={(e) => setSoundEnabled(e.target.checked)}
-            />
-            {/* volume on */}
-            <svg
-              className="swap-on fill-current"
-              xmlns="http://www.w3.org/2000/svg"
-              width="28"
-              height="28"
-              viewBox="0 0 24 24"
-            >
-              <path d="M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z" />
-            </svg>
-            {/* volume off */}
-            <svg
-              className="swap-off fill-current"
-              xmlns="http://www.w3.org/2000/svg"
-              width="28"
-              height="28"
-              viewBox="0 0 24 24"
-            >
-              <path d="M3,9H7L12,4V20L7,15H3V9M16.59,12L14,9.41L15.41,8L18,10.59L20.59,8L22,9.41L19.41,12L22,14.59L20.59,16L18,13.41L15.41,16L14,14.59L16.59,12Z" />
-            </svg>
-          </label>
+        <div className="flex justify-between items-center px-6 py-4 border-b border-zinc-800/80 bg-zinc-900/40">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+              <Bot className="size-4 text-white" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-zinc-100 tracking-wide flex items-center gap-2">
+                EchoVerse Intelligence
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              </h2>
+              <p className="text-xs text-zinc-400">Ask anything or issue a command</p>
+            </div>
+          </div>
 
-          <X className="cursor-pointer" onClick={onClose} />
-        </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto space-y-3 px-6 py-4">
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`p-2 rounded-lg max-w-[40%] ${
-                msg.role === "user"
-                  ? "bg-indigo-600 ml-auto text-left"
-                  : "bg-gray-700 mr-auto text-left"
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSoundEnabled((prev) => !prev)}
+              title={soundEnabled ? "Mute Voice" : "Unmute Voice"}
+              className={`p-2 rounded-xl border transition-all duration-200 cursor-pointer ${
+                soundEnabled
+                  ? "bg-indigo-950/60 border-indigo-500/40 text-indigo-300 hover:bg-indigo-900/60"
+                  : "bg-zinc-800/60 border-zinc-700/60 text-zinc-400 hover:text-white"
               }`}
             >
-              {msg.text}
+              {soundEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+            </button>
+
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition-colors cursor-pointer"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Message History */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 scroll-smooth">
+          {messages.length === 0 && (
+            <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
+              <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800/80 text-indigo-400 shadow-inner">
+                <Sparkles className="size-7 animate-pulse" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-zinc-200">How can I assist you today?</p>
+                <p className="text-xs text-zinc-500 mt-1 max-w-sm">
+                  Search maps, play music, look up facts, or control your EchoVerse workspace.
+                </p>
+              </div>
+
+              {/* Suggestions */}
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-2 max-w-md">
+                {SUGGESTIONS.map((item, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSend(item)}
+                    className="px-3.5 py-1.5 rounded-full text-xs bg-zinc-900/80 hover:bg-indigo-950/70 border border-zinc-800 hover:border-indigo-500/50 text-zinc-300 hover:text-indigo-200 transition-all duration-200 cursor-pointer"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {messages.map((msg, idx) => (
+            <div
+              key={idx}
+              className={`flex items-start gap-3 animate-in fade-in duration-200 ${
+                msg.role === "user" ? "justify-end" : "justify-start"
+              }`}
+            >
+              {msg.role !== "user" && (
+                <div className="w-7 h-7 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0 mt-0.5 text-indigo-400">
+                  <Bot className="size-3.5" />
+                </div>
+              )}
+
+              <div
+                className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed max-w-[80%] md:max-w-[70%] break-words shadow-sm ${
+                  msg.role === "user"
+                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-tr-xs"
+                    : "bg-zinc-900/90 border border-zinc-800 text-zinc-100 rounded-tl-xs shadow-zinc-950/50"
+                }`}
+              >
+                {msg.text}
+              </div>
+
+              {msg.role === "user" && (
+                <div className="w-7 h-7 rounded-full bg-indigo-950 border border-indigo-700/60 flex items-center justify-center shrink-0 mt-0.5 text-indigo-300">
+                  <User className="size-3.5" />
+                </div>
+              )}
             </div>
           ))}
+
+          {isWaiting && (
+            <div className="flex items-start gap-3 animate-in fade-in duration-150">
+              <div className="w-7 h-7 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0 mt-0.5 text-indigo-400">
+                <Bot className="size-3.5" />
+              </div>
+              <div className="px-4 py-3 rounded-2xl bg-zinc-900/90 border border-zinc-800 rounded-tl-xs flex items-center gap-1.5 shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" />
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:0.2s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:0.4s]" />
+              </div>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input fixed at bottom */}
+        {/* Input Bar */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleSend();
           }}
-          className="flex items-center gap-2 border-t border-gray-700 px-4 py-3"
+          className="flex items-center gap-2 border-t border-zinc-800/80 bg-zinc-900/30 p-3 sm:px-4"
         >
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="flex-1 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 focus:outline-none"
-            placeholder={
-              isWaiting ? "Waiting for AI..." : "Type your message..."
-            }
-            disabled={isWaiting} // disable input while waiting
+            disabled={isWaiting}
+            placeholder={isWaiting ? "Thinking..." : "Type your query or command..."}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 focus:border-indigo-500 focus:outline-none text-sm text-zinc-100 placeholder-zinc-500 transition-colors"
           />
           <button
             type="submit"
-            className={`p-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition ${
-              isWaiting ? "opacity-50 cursor-not-allowed" : ""
-            }`}
-            disabled={isWaiting} // disable button while waiting
+            disabled={isWaiting || !input.trim()}
+            className="p-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 text-white transition-all shadow-md shadow-indigo-600/20 cursor-pointer disabled:cursor-not-allowed"
           >
-            <SendHorizonal className="text-white" />
+            <SendHorizonal className="size-4" />
           </button>
         </form>
       </div>

@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import axios from "axios";
 
 import ModelOne, { modelOneSpeak } from "../components/models/ModelOne";
 import ModelTwo, { modelTwoSpeak } from "../components/models/ModelTwo";
 import ModelThree, { modelThreeSpeak } from "../components/models/Modelthree";
 import Chat from "../components/Chat";
-import { MessageSquareText, Mic, MicOff } from "lucide-react";
+import { MessageSquareText, Mic, MicOff, Sparkles } from "lucide-react";
 import BubbleMenu from "../Animations/BubbleMenu";
 import TrueFocus from "../Animations/TrueFocus";
 import { useRouter } from "next/navigation";
@@ -39,6 +39,7 @@ const Mainpage = () => {
   const [chatOpen, setChatOpen] = useState(false);
   const [userText, setUserText] = useState("");
   const [aiText, setAiText] = useState("");
+  const [assistantState, setAssistantState] = useState<"idle" | "listening" | "thinking" | "speaking">("idle");
 
   const isSpeakingRef = useRef(false);
   const recognitionRef = useRef<any>(null);
@@ -107,7 +108,7 @@ const Mainpage = () => {
   };
 
   // ---------- Safe Recognition ----------
-  const safeRecognition = (delay = 600) => {
+  const safeRecognition = useCallback((delay = 600) => {
     if (restartTimeout.current) clearTimeout(restartTimeout.current);
     restartTimeout.current = setTimeout(() => {
       if (
@@ -126,7 +127,7 @@ const Mainpage = () => {
         }
       }
     }, delay);
-  };
+  }, []);
 
   // Trigger command processing after silence
   const executeCommand = async (commandToSend: string) => {
@@ -137,6 +138,7 @@ const Mainpage = () => {
 
     isAwakeRef.current = false;
     isProcessingRef.current = true;
+    setAssistantState("thinking");
     accumulatedCommandRef.current = "";
 
     try {
@@ -159,6 +161,7 @@ const Mainpage = () => {
       setAiText(data.response);
     } else {
       isProcessingRef.current = false;
+      setAssistantState("idle");
       setUserText("");
       safeRecognition(500);
     }
@@ -168,12 +171,14 @@ const Mainpage = () => {
   const activateVoiceListening = () => {
     if (isSpeakingRef.current || isProcessingRef.current) return;
     isAwakeRef.current = true;
+    setAssistantState("listening");
     setUserText("Listening...");
     accumulatedCommandRef.current = "";
     if (awakeExpireTimeoutRef.current) clearTimeout(awakeExpireTimeoutRef.current);
     awakeExpireTimeoutRef.current = setTimeout(() => {
       if (isAwakeRef.current && !accumulatedCommandRef.current) {
         isAwakeRef.current = false;
+        setAssistantState("idle");
         setUserText("");
       }
     }, 7000);
@@ -299,6 +304,7 @@ const Mainpage = () => {
         if (containsHotword) {
           console.log("[Wake Word Detected]:", assistantName);
           isAwakeRef.current = true;
+          setAssistantState("listening");
 
           // Extract text spoken after the assistant's name
           let commandAfterName = rawTranscript;
@@ -327,6 +333,7 @@ const Mainpage = () => {
               if (isAwakeRef.current && !accumulatedCommandRef.current) {
                 console.log("[Wake timeout] No command heard, sleeping");
                 isAwakeRef.current = false;
+                setAssistantState("idle");
                 setUserText("");
               }
             }, 7000);
@@ -374,7 +381,7 @@ const Mainpage = () => {
       if (awakeExpireTimeoutRef.current) clearTimeout(awakeExpireTimeoutRef.current);
       clearInterval(fallBackCheck);
     };
-  }, [user]);
+  }, [user, safeRecognition]);
 
   // ---------- Handle Commands ----------
   const handleQuery = (data: any) => {
@@ -385,10 +392,12 @@ const Mainpage = () => {
       setAiText("");
       setUserText("");
       isProcessingRef.current = false;
+      setAssistantState("idle");
       safeRecognition(400);
     };
 
     if (!chatOpen && response) {
+      setAssistantState("speaking");
       switch (user.assistantImage) {
         case "/model1.jpg":
           modelOneSpeak(response, isSpeakingRef, () => safeRecognition(), onSpeechFinish);
@@ -497,7 +506,8 @@ const Mainpage = () => {
     }
   };
 
-  const renderModel = () => {
+  const renderedModel = useMemo(() => {
+    if (!user) return null;
     switch (user.assistantImage) {
       case "/model1.jpg":
         return (
@@ -528,70 +538,87 @@ const Mainpage = () => {
           />
         );
     }
-  };
+  }, [user?.assistantImage, safeRecognition]);
 
-  if (!user) return <p className="text-center text-white">Loading...</p>;
-
-  const items = [
-    {
-      label: "home",
-      href: "/Homepage",
-      ariaLabel: "Home",
-      rotation: -8,
-      hoverStyles: { bgColor: "#3b82f6", textColor: "#ffffff" },
-    },
-    {
-      label: "Models",
-      href: "/Models",
-      ariaLabel: "Model",
-      rotation: 8,
-      hoverStyles: { bgColor: "#10b981", textColor: "#ffffff" },
-    },
-    {
-      label: "Model Name",
-      href: "/ChooseName",
-      ariaLabel: "Model Name",
-      rotation: 8,
-      hoverStyles: { bgColor: "#f59e0b", textColor: "#ffffff" },
-    },
-    {
-      label: "BlackBoard",
-      href: "/BlackBoard",
-      ariaLabel: "BlackBoard",
-      rotation: 8,
-      hoverStyles: { bgColor: "#ef4444", textColor: "#ffffff" },
-    },
-    {
-      label: "Log Out",
-      href: "#",
-      ariaLabel: "Log Out",
-      rotation: -8,
-      hoverStyles: { bgColor: "#8b5cf6", textColor: "#ffffff" },
-      onClick: async () => {
-        await logout();
-        router.push("/Homepage");
+  const items = useMemo(
+    () => [
+      {
+        label: "home",
+        href: "/Homepage",
+        ariaLabel: "Home",
+        rotation: -8,
+        hoverStyles: { bgColor: "#3b82f6", textColor: "#ffffff" },
       },
-    },
-  ];
+      {
+        label: "Models",
+        href: "/Models",
+        ariaLabel: "Model",
+        rotation: 8,
+        hoverStyles: { bgColor: "#10b981", textColor: "#ffffff" },
+      },
+      {
+        label: "Model Name",
+        href: "/ChooseName",
+        ariaLabel: "Model Name",
+        rotation: 8,
+        hoverStyles: { bgColor: "#f59e0b", textColor: "#ffffff" },
+      },
+      {
+        label: "BlackBoard",
+        href: "/BlackBoard",
+        ariaLabel: "BlackBoard",
+        rotation: 8,
+        hoverStyles: { bgColor: "#ef4444", textColor: "#ffffff" },
+      },
+      {
+        label: "Log Out",
+        href: "#",
+        ariaLabel: "Log Out",
+        rotation: -8,
+        hoverStyles: { bgColor: "#8b5cf6", textColor: "#ffffff" },
+        onClick: async () => {
+          await logout();
+          router.push("/Homepage");
+        },
+      },
+    ],
+    [router]
+  );
+
+  if (!user) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-black text-white">
+        <div className="w-10 h-10 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin mb-3" />
+        <p className="text-zinc-400 text-sm font-medium tracking-wide">Initializing EchoVerse...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="h-screen w-full flex flex-col bg-black">
-      {/* Navbar */}
-      <header className="flex justify-between items-center px-8 py-4 border-b border-gray-800">
+    <div className="h-screen w-full flex flex-col bg-black text-white relative overflow-hidden select-none">
+      {/* Subtle Ambient Cosmic Glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-gradient-to-b from-indigo-600/10 via-purple-600/5 to-transparent blur-3xl pointer-events-none" />
+
+      {/* Header */}
+      <header className="flex justify-between items-center px-6 md:px-10 py-3 border-b border-zinc-800/80 bg-zinc-950/40 backdrop-blur-md z-20 shrink-0">
         <TrueFocus
           sentence="Echo Verse"
           manualMode={false}
-          blurAmount={5}
-          borderColor="purple"
+          blurAmount={4}
+          borderColor="#818cf8"
           animationDuration={2}
           pauseBetweenAnimations={1}
         />
 
-        <div className="flex mr-18">
-          <MessageSquareText
-            className="size-7 cursor-pointer"
+        <div className="flex items-center gap-3">
+          <button
             onClick={() => setChatOpen(true)}
-          />
+            title="Open AI Chat"
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-900/80 border border-zinc-800 hover:border-indigo-500/50 hover:bg-zinc-850 text-zinc-300 hover:text-white transition-all shadow-sm cursor-pointer"
+          >
+            <MessageSquareText className="size-4 text-indigo-400" />
+            <span className="text-xs font-medium hidden sm:inline">Text Chat</span>
+          </button>
         </div>
       </header>
 
@@ -601,57 +628,134 @@ const Mainpage = () => {
         onSend={sendMessageToAI}
       />
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center justify-center text-center px-6">
-        <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-          Welcome, <span className="text-indigo-400">{user.name}</span>
-        </h2>
+      {/* Main Content Stage */}
+      <main className="flex-1 flex flex-col items-center justify-between py-2 md:py-4 px-4 text-center z-10 max-h-[calc(100vh-65px)] overflow-hidden">
+        {/* User Welcome & Callout */}
+        <div className="shrink-0 space-y-1">
+          <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white">
+            Welcome, <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">{user.name}</span>
+          </h2>
 
-        <p className="text-gray-400 text-base mb-4">
-          Say{" "}
-          <span className="text-indigo-400 font-semibold">
-            {user.assistantName}
-          </span>{" "}
-          to wake me up, or tap the mic.
-        </p>
+          <p className="text-zinc-400 text-xs md:text-sm font-medium">
+            Say{" "}
+            <span className="text-indigo-400 font-semibold px-2 py-0.5 rounded-md bg-indigo-950/60 border border-indigo-500/30">
+              {user.assistantName}
+            </span>{" "}
+            or tap the orb to talk.
+          </p>
+        </div>
 
-        {renderModel()}
+        {/* 3D Model Stage with Ambient Pedestal */}
+        <div className="relative flex-1 flex items-center justify-center w-full max-w-xl my-auto">
+          {/* Holographic Stage Halo */}
+          <div className="absolute inset-x-8 bottom-4 h-16 bg-gradient-to-t from-indigo-500/20 to-transparent rounded-full blur-xl pointer-events-none" />
+          {renderedModel}
+        </div>
 
-        {/* Live Speech Subtitle & Status */}
-        {userText && (
-          <div className="mt-3 px-5 py-2 rounded-full bg-indigo-950/80 border border-indigo-500/50 text-indigo-200 text-sm animate-pulse max-w-lg shadow-lg shadow-indigo-950/50 backdrop-blur-md">
-            🎤 {userText}
-          </div>
-        )}
+        {/* Fixed HUD Space for Speech Transcript (prevents layout jumping) */}
+        <div className="min-h-[42px] flex items-center justify-center shrink-0 w-full px-4">
+          {userText && (
+            <div className="px-5 py-2 rounded-full bg-zinc-950/85 border border-indigo-500/50 text-indigo-200 text-xs md:text-sm font-medium shadow-[0_0_25px_rgba(99,102,241,0.3)] backdrop-blur-xl flex items-center gap-2 max-w-lg truncate">
+              <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
+              <span className="truncate">{userText}</span>
+            </div>
+          )}
+          {!userText && aiText && (
+            <div className="px-5 py-2 rounded-full bg-purple-950/85 border border-purple-500/50 text-purple-200 text-xs md:text-sm font-medium shadow-[0_0_25px_rgba(168,85,247,0.3)] backdrop-blur-xl flex items-center gap-2 max-w-lg truncate">
+              <Sparkles className="size-3.5 text-purple-400 shrink-0" />
+              <span className="truncate">{aiText}</span>
+            </div>
+          )}
+        </div>
 
-        <div className="flex flex-col items-center gap-3 mt-4">
+        {/* Unified Cyber-Orb Voice Dock */}
+        <div className="relative flex flex-col items-center justify-center shrink-0 pb-2">
+          {/* Ambient Reactive Halo */}
+          <div
+            className={`absolute -inset-3 rounded-full blur-2xl transition-all duration-700 pointer-events-none ${
+              assistantState === "speaking"
+                ? "bg-purple-600/35 scale-110"
+                : assistantState === "thinking"
+                ? "bg-cyan-500/30 animate-pulse scale-105"
+                : assistantState === "listening"
+                ? "bg-indigo-500/40 animate-ping duration-1000 scale-105"
+                : "bg-indigo-600/15 scale-95"
+            }`}
+          />
+
+          {/* Interactive Pedestal Orb */}
           <button
             onClick={activateVoiceListening}
-            title="Click to speak directly"
-            className="group relative flex items-center justify-center p-2 rounded-full transition-transform hover:scale-105 active:scale-95 focus:outline-none"
+            title="Click to speak directly or say wake word"
+            className={`group relative flex items-center justify-center w-24 h-24 md:w-28 md:h-28 rounded-full border backdrop-blur-2xl transition-all duration-300 focus:outline-none cursor-pointer ${
+              assistantState === "speaking"
+                ? "bg-purple-950/50 border-purple-500/60 shadow-[0_0_35px_rgba(168,85,247,0.4)] scale-105"
+                : assistantState === "thinking"
+                ? "bg-cyan-950/50 border-cyan-500/60 shadow-[0_0_30px_rgba(6,182,212,0.4)] animate-pulse"
+                : assistantState === "listening"
+                ? "bg-indigo-950/60 border-indigo-400 shadow-[0_0_40px_rgba(99,102,241,0.5)] scale-105"
+                : "bg-zinc-950/60 border-zinc-800/80 shadow-[0_0_20px_rgba(0,0,0,0.6)] hover:border-indigo-500/50 hover:scale-102"
+            }`}
           >
-            {!aiText && (
-              <img
-                src="/userVoice.gif"
-                alt="Voice listening wave"
-                className="w-[180px] drop-shadow-[0_0_15px_rgba(99,102,241,0.3)] cursor-pointer"
-              />
-            )}
-            {aiText && (
-              <img
-                src="/aiVoice.gif"
-                alt="AI speaking wave"
-                className="w-[180px] drop-shadow-[0_0_20px_rgba(168,85,247,0.4)]"
-              />
-            )}
-            <div className="absolute bottom-1 right-1 p-2 rounded-full bg-indigo-600/80 hover:bg-indigo-500 text-white shadow-md transition">
-              {listening ? (
-                <Mic className="size-4 animate-pulse" />
+            {/* Blended Circular Waveform */}
+            <div className="relative w-full h-full rounded-full overflow-hidden flex items-center justify-center p-1">
+              {assistantState === "speaking" ? (
+                <img
+                  src="/aiVoice.gif"
+                  alt="AI Speaking"
+                  className="w-full h-full object-cover mix-blend-screen scale-110"
+                />
               ) : (
-                <MicOff className="size-4 text-gray-300" />
+                <img
+                  src="/userVoice.gif"
+                  alt="Voice Wave"
+                  className={`w-full h-full object-cover mix-blend-screen transition-opacity duration-300 ${
+                    assistantState === "idle" ? "opacity-65 contrast-125" : "opacity-100"
+                  }`}
+                />
+              )}
+            </div>
+
+            {/* Mic Status Badge */}
+            <div
+              className={`absolute -bottom-0.5 -right-0.5 p-1.5 md:p-2 rounded-full border shadow-md transition-all duration-300 ${
+                assistantState === "speaking"
+                  ? "bg-purple-600 border-purple-400 text-white"
+                  : assistantState === "listening"
+                  ? "bg-indigo-600 border-indigo-400 text-white animate-bounce"
+                  : listening
+                  ? "bg-indigo-600/90 border-indigo-500 text-white"
+                  : "bg-zinc-800 border-zinc-700 text-zinc-400"
+              }`}
+            >
+              {listening ? (
+                <Mic className="size-3.5 md:size-4 animate-pulse" />
+              ) : (
+                <MicOff className="size-3.5 md:size-4" />
               )}
             </div>
           </button>
+
+          {/* Status Label */}
+          <span
+            className={`mt-1.5 text-[10px] md:text-xs font-semibold tracking-wider uppercase transition-colors duration-300 ${
+              assistantState === "speaking"
+                ? "text-purple-400"
+                : assistantState === "thinking"
+                ? "text-cyan-400 animate-pulse"
+                : assistantState === "listening"
+                ? "text-indigo-400"
+                : "text-zinc-500"
+            }`}
+          >
+            {assistantState === "speaking"
+              ? "Responding..."
+              : assistantState === "thinking"
+              ? "Thinking..."
+              : assistantState === "listening"
+              ? "Listening to you..."
+              : "Tap or say name"}
+          </span>
         </div>
       </main>
 
