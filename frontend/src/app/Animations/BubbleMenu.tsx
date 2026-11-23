@@ -250,11 +250,11 @@ export default function BubbleMenu({
           onClick={handleToggle}
           aria-label={menuAriaLabel}
           aria-pressed={isMenuOpen}
-          className="bubble toggle-bubble menu-btn inline-flex items-center justify-center rounded-full bg-white shadow-md pointer-events-auto w-8 h-8 md:w-8 md:h-8 border-0 cursor-pointer p-0"
+          className="bubble toggle-bubble menu-btn inline-flex items-center justify-center rounded-full bg-white shadow-md pointer-events-auto w-9 h-9 md:w-9 md:h-9 border-0 cursor-pointer p-0 hover:scale-105 transition-transform"
           style={{ background: menuBg }}
         >
           <Settings
-            className={`size-7 md:size-7 transition-transform duration-300 ${
+            className={`size-5 md:size-5 transition-transform duration-300 ${
               isMenuOpen ? "rotate-90" : "rotate-0"
             }`}
             style={{ color: menuContentColor }}

@@ -12,9 +12,9 @@ export const modelTwoSpeak = (
 ) => {
   universalSpeak({
     text,
-    lang: "hi-IN",
-    voiceKeywords: ["hindi", "kalpana", "hemant", "lekha", "neel", "हिन्दी", "india"],
-    pitch: 0.9,
+    lang: "en-IN",
+    voiceKeywords: ["india", "indian", "hindi", "kalpana", "hemant", "lekha", "neel"],
+    pitch: 0.95,
     rate: 0.95,
     isSpeakingRef,
     startRecognition,
@@ -30,7 +30,7 @@ const ModelTwo = memo(({
   startRecognition: any;
 }) => {
   return (
-    <div className="flex flex-col items-center justify-center w-full max-w-[460px] h-[300px] md:h-[380px] relative pointer-events-auto select-none transition-all duration-300">
+    <div className="flex flex-col items-center justify-center w-full max-w-[620px] h-[480px] md:h-[540px] relative pointer-events-auto select-none transition-all duration-300">
       <Spline
         scene="https://prod.spline.design/WZXeiBX2HIsi8Xz1/scene.splinecode"
         className="w-full h-full object-contain"

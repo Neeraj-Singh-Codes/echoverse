@@ -226,8 +226,9 @@ const Mainpage = () => {
     recognition.interimResults = true; // Stream words in real-time
 
     // Match language to selected model
+    // Model 2 uses en-IN (Indian English) so it listens and transcribes in English, not Hindi script
     if (user.assistantImage === "/model2.png") {
-      recognition.lang = "hi-IN";
+      recognition.lang = "en-IN";
     } else if (user.assistantImage === "/model3.jpg") {
       recognition.lang = "en-GB";
     } else {
@@ -610,14 +611,14 @@ const Mainpage = () => {
           pauseBetweenAnimations={1}
         />
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mr-20 md:mr-24">
           <button
             onClick={() => setChatOpen(true)}
             title="Open AI Chat"
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-900/80 border border-zinc-800 hover:border-indigo-500/50 hover:bg-zinc-850 text-zinc-300 hover:text-white transition-all shadow-sm cursor-pointer"
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-900/90 border border-zinc-700/80 hover:border-indigo-500/60 hover:bg-zinc-800 text-zinc-200 hover:text-white transition-all shadow-md cursor-pointer"
           >
             <MessageSquareText className="size-4 text-indigo-400" />
-            <span className="text-xs font-medium hidden sm:inline">Text Chat</span>
+            <span className="text-xs font-semibold hidden sm:inline">Text Chat</span>
           </button>
         </div>
       </header>
@@ -629,7 +630,7 @@ const Mainpage = () => {
       />
 
       {/* Main Content Stage */}
-      <main className="flex-1 flex flex-col items-center justify-between py-2 md:py-4 px-4 text-center z-10 max-h-[calc(100vh-65px)] overflow-hidden">
+      <main className="flex-1 flex flex-col items-center justify-between py-2 md:py-3 px-4 text-center z-10 w-full overflow-y-auto overflow-x-hidden">
         {/* User Welcome & Callout */}
         <div className="shrink-0 space-y-1">
           <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white">
@@ -646,9 +647,9 @@ const Mainpage = () => {
         </div>
 
         {/* 3D Model Stage with Ambient Pedestal */}
-        <div className="relative flex-1 flex items-center justify-center w-full max-w-xl my-auto">
+        <div className="relative flex-1 flex items-center justify-center w-full max-w-3xl my-auto min-h-[460px]">
           {/* Holographic Stage Halo */}
-          <div className="absolute inset-x-8 bottom-4 h-16 bg-gradient-to-t from-indigo-500/20 to-transparent rounded-full blur-xl pointer-events-none" />
+          <div className="absolute inset-x-8 bottom-4 h-20 bg-gradient-to-t from-indigo-500/20 to-transparent rounded-full blur-xl pointer-events-none" />
           {renderedModel}
         </div>
 

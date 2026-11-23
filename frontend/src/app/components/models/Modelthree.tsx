@@ -24,7 +24,7 @@ export const modelThreeSpeak = (
 
 const ModelThree = memo(({ isSpeakingRef, startRecognition }: { isSpeakingRef: any; startRecognition: any }) => {
   return (
-    <div className="flex flex-col items-center justify-center w-full max-w-[460px] h-[300px] md:h-[380px] relative pointer-events-auto select-none transition-all duration-300">
+    <div className="flex flex-col items-center justify-center w-full max-w-[620px] h-[480px] md:h-[540px] relative pointer-events-auto select-none transition-all duration-300">
       <Spline
         scene="https://prod.spline.design/hLFE1KeH865ijwWz/scene.splinecode"
         className="w-full h-full object-contain"
