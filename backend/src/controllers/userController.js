@@ -51,7 +51,7 @@ export const askToAssistant = async (req, res) => {
     const userName = user.name;
     const assistantName = user.assistantName;
     const result = await geminiResponse(command, assistantName, userName);
-    const jsonMatch = result.match(/{[\s\S]*}/);
+    const jsonMatch = typeof result === "string" ? result.match(/{[\s\S]*}/) : null;
 
     if (!jsonMatch) {
       return res.status(400).json({

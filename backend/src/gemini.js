@@ -108,16 +108,52 @@ Now process the user's request and output a valid JSON object.
 User input: "${command}"
 `;
 
-    const result = await axios.post(api_Url, {
-      contents: [
+    try {
+      if (api_Url) {
+        const result = await axios.post(
+          api_Url,
+          {
+            contents: [
+              {
+                parts: [{ text: prompt }],
+              },
+            ],
+          },
+          { timeout: 8000 }
+        );
+        if (result?.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+          return result.data.candidates[0].content.parts[0].text;
+        }
+      }
+    } catch (geminiError) {
+      console.warn(
+        "[Gemini API Warning]:",
+        geminiError.response?.data || geminiError.message
+      );
+    }
+
+    // High-speed fallback to Groq using the exact same prompt
+    const groqKey = process.env.GROQ_API_KEY;
+    if (groqKey) {
+      const groqResponse = await axios.post(
+        "https://api.groq.com/openai/v1/chat/completions",
         {
-          parts: [{ text: prompt }],
+          model: "qwen/qwen3.8-27b",
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
         },
-      ],
-    });
-    return result.data.candidates[0].content.parts[0].text;
+        {
+          headers: {
+            Authorization: `Bearer ${groqKey}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 8000,
+        }
+      );
+      return groqResponse.data.choices[0].message.content;
+    }
   } catch (error) {
-    console.log(error);
+    console.log("[LLM Error]:", error.response?.data || error.message);
   }
 };
 export default geminiResponse;
