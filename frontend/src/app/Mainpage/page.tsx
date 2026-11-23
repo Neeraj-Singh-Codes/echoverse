@@ -94,9 +94,12 @@ const Mainpage = () => {
       const data = res.data;
       handleQuery(data);
       return res.data.response || "No response";
-    } catch (err) {
-      console.error(err);
-      return "Error talking to AI.";
+    } catch (err: any) {
+      console.error("[sendMessageToAI Error]:", err.response?.data || err.message || err);
+      const fallbackMsg =
+        err.response?.data?.response ||
+        "I'm having trouble thinking right now. Please try again in a moment.";
+      return fallbackMsg;
     }
   };
 

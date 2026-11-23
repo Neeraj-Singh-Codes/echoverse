@@ -54,9 +54,10 @@ export const askToAssistant = async (req, res) => {
     const jsonMatch = typeof result === "string" ? result.match(/{[\s\S]*}/) : null;
 
     if (!jsonMatch) {
-      return res.status(400).json({
-        message: "sorry, Can't Understand",
-        response: "sorry, I can't understand",
+      return res.json({
+        type: "general",
+        userInput: command,
+        response: "Sorry, I couldn't understand that. Could you please rephrase?",
       });
     }
     const gemResult = JSON.parse(jsonMatch[0]);
@@ -126,12 +127,20 @@ export const askToAssistant = async (req, res) => {
         });
 
       default:
-        return res
-          .status(400)
-          .json({ response: "I didn't understand that command" });
+        return res.json({
+          type: "general",
+          userInput: gemResult.userInput || command,
+          response:
+            gemResult.response || "I didn't understand that command, but I'm here to help!",
+        });
     }
   } catch (error) {
-    return res.status(400).json({ response: "Ask Again! ", error });
+    console.error("[askToAssistant Error]:", error);
+    return res.json({
+      type: "general",
+      userInput: req.body?.command || "",
+      response: "I'm having trouble thinking right now. Please try asking again!",
+    });
   }
 };
 

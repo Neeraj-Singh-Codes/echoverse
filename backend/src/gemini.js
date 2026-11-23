@@ -134,23 +134,44 @@ User input: "${command}"
 
     // High-speed fallback to Groq using the exact same prompt
     const groqKey = process.env.GROQ_API_KEY;
+
     if (groqKey) {
-      const groqResponse = await axios.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        {
-          model: "qwen/qwen3.8-27b",
-          messages: [{ role: "user", content: prompt }],
-          response_format: { type: "json_object" },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${groqKey}`,
-            "Content-Type": "application/json",
+      try {
+        const groqResponse = await axios.post(
+          "https://api.groq.com/openai/v1/chat/completions",
+          {
+            model: "qwen/qwen3.8-27b",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" },
           },
-          timeout: 8000,
-        }
-      );
-      return groqResponse.data.choices[0].message.content;
+          {
+            headers: {
+              Authorization: `Bearer ${groqKey}`,
+              "Content-Type": "application/json",
+            },
+            timeout: 8000,
+          }
+        );
+        return groqResponse.data.choices[0].message.content;
+      } catch (qwenErr) {
+        // Backup model on Groq
+        const backupResponse = await axios.post(
+          "https://api.groq.com/openai/v1/chat/completions",
+          {
+            model: "openai/gpt-oss-20b",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" },
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${groqKey}`,
+              "Content-Type": "application/json",
+            },
+            timeout: 8000,
+          }
+        );
+        return backupResponse.data.choices[0].message.content;
+      }
     }
   } catch (error) {
     console.log("[LLM Error]:", error.response?.data || error.message);
