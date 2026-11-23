@@ -108,11 +108,18 @@ Now process the user's request and output a valid JSON object.
 User input: "${command}"
 `;
 
+    const urlsToTry = [
+      api_Url,
+      api_Url?.replace(/models\/[^:]+:/, "models/gemini-3-flash-preview:"),
+      api_Url?.replace(/models\/[^:]+:/, "models/gemini-flash-latest:"),
+      api_Url?.replace(/models\/[^:]+:/, "models/gemini-flash-lite-latest:"),
+    ].filter(Boolean);
+
     let lastError = null;
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (const url of urlsToTry) {
       try {
         const result = await axios.post(
-          api_Url,
+          url,
           {
             contents: [
               {
@@ -120,17 +127,17 @@ User input: "${command}"
               },
             ],
           },
-          { timeout: 12000 }
+          { timeout: 10000 }
         );
-        return result.data.candidates[0].content.parts[0].text;
+        if (result?.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+          return result.data.candidates[0].content.parts[0].text;
+        }
       } catch (err) {
         lastError = err;
-        if (err.response?.status === 503 && attempt < 3) {
-          console.warn(`[Gemini 503 spike, retrying attempt ${attempt + 1}...]`);
-          await new Promise((res) => setTimeout(res, 1000));
-        } else {
-          break;
-        }
+        console.warn(
+          `[Gemini notice on ${url.match(/models\/([^:]+):/)?.[1] || "model"}]:`,
+          err.response?.status || err.message
+        );
       }
     }
     throw lastError;

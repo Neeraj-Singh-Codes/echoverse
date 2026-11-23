@@ -63,14 +63,57 @@ export const askToAssistant = async (req, res) => {
     }
 
     if (!gemResult || !gemResult.response) {
-      const cleanResponse =
+      const lower = (command || "").toLowerCase();
+      let fallbackType = "general";
+      let fallbackInput = command;
+      let fallbackResponse =
         typeof result === "string" && result.trim()
           ? result.replace(/```json|```/g, "").trim()
-          : "Sorry, I couldn't understand that. Could you please rephrase?";
+          : "Searching for that right now.";
+
+      if (lower.includes("map") || lower.includes("maps") || lower.includes("directions to")) {
+        fallbackType = "maps-search";
+        fallbackInput = command
+          .replace(/can you please\s*/i, "")
+          .replace(/please\s*/i, "")
+          .replace(/search for\s*/i, "")
+          .replace(/search\s*/i, "")
+          .replace(/\s*(on|in)\s*maps?/i, "")
+          .trim();
+        fallbackResponse = `Sure, searching for ${fallbackInput} on Google Maps.`;
+      } else if (lower.includes("google") || lower.includes("search for")) {
+        fallbackType = "google-search";
+        fallbackInput = command.replace(/google\s*/i, "").replace(/search for\s*/i, "").trim();
+        fallbackResponse = `Searching Google for ${fallbackInput}.`;
+      } else if (lower.includes("play") && lower.includes("youtube")) {
+        fallbackType = "youtube-play";
+        fallbackInput = command.replace(/play\s*/i, "").replace(/\s*on youtube/i, "").trim();
+        fallbackResponse = `Playing ${fallbackInput} on YouTube.`;
+      } else if (lower.includes("youtube")) {
+        fallbackType = "youtube-search";
+        fallbackInput = command.replace(/search\s*/i, "").replace(/\s*on youtube/i, "").trim();
+        fallbackResponse = `Searching YouTube for ${fallbackInput}.`;
+      } else if (lower.includes("weather")) {
+        fallbackType = "weather-show";
+        fallbackResponse = "Checking the weather for you.";
+      } else if (lower.includes("time")) {
+        fallbackType = "get-time";
+        fallbackResponse = `The current time is ${moment().format("hh:mm A")}.`;
+      } else if (lower.includes("date")) {
+        fallbackType = "get-date";
+        fallbackResponse = `Today's date is ${moment().format("YYYY-MM-DD")}.`;
+      } else if (lower.includes("calculator")) {
+        fallbackType = "calculator-open";
+        fallbackResponse = "Opening calculator.";
+      } else if (lower.includes("blackboard")) {
+        fallbackType = "open-blackboard";
+        fallbackResponse = "Opening Blackboard for you!";
+      }
+
       return res.json({
-        type: "general",
-        userInput: command,
-        response: cleanResponse,
+        type: fallbackType,
+        userInput: fallbackInput,
+        response: fallbackResponse,
       });
     }
     if (gemResult.userInput?.toLowerCase().includes("open blackboard")) {
