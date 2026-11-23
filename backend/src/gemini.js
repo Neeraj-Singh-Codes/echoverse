@@ -108,14 +108,32 @@ Now process the user's request and output a valid JSON object.
 User input: "${command}"
 `;
 
-    const result = await axios.post(api_Url, {
-      contents: [
-        {
-          parts: [{ text: prompt }],
-        },
-      ],
-    });
-    return result.data.candidates[0].content.parts[0].text;
+    let lastError = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const result = await axios.post(
+          api_Url,
+          {
+            contents: [
+              {
+                parts: [{ text: prompt }],
+              },
+            ],
+          },
+          { timeout: 12000 }
+        );
+        return result.data.candidates[0].content.parts[0].text;
+      } catch (err) {
+        lastError = err;
+        if (err.response?.status === 503 && attempt < 3) {
+          console.warn(`[Gemini 503 spike, retrying attempt ${attempt + 1}...]`);
+          await new Promise((res) => setTimeout(res, 1000));
+        } else {
+          break;
+        }
+      }
+    }
+    throw lastError;
   } catch (error) {
     console.error("[Gemini Error]:", error.response?.data || error.message);
   }
