@@ -12,55 +12,61 @@ import BubbleMenu from "../Animations/BubbleMenu";
 import TrueFocus from "../Animations/TrueFocus";
 import { useRouter } from "next/navigation";
 
-// levenshtein + similarity stay same...
-const levenshtein = (a: string, b: string) => {
-  const dp = Array.from({ length: a.length + 1 }, () =>
-    Array(b.length + 1).fill(0)
-  );
-  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
-  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
-
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      if (a[i - 1] === b[j - 1]) dp[i][j] = dp[i - 1][j - 1];
-      else
-        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-    }
-  }
-  return dp[a.length][b.length];
-};
-const similarity = (a: string, b: string) =>
-  1 - levenshtein(a, b) / Math.max(a.length, b.length);
-
 const Mainpage = () => {
   const [user, setUser] = useState<any>(null);
   const [listening, setListening] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [userText, setUserText] = useState("");
   const [aiText, setAiText] = useState("");
-  const [isRecordingGroq, setIsRecordingGroq] = useState(false);
 
   const isSpeakingRef = useRef(false);
-  const recognitionRef = useRef<any>(null);
-  const isRecognizingRef = useRef(false);
-  const lastSpokenRef = useRef<string>("");
-  const restartTimeout = useRef<NodeJS.Timeout | null>(null);
-  const errorCountRef = useRef(0);
-
-  // Enhanced voice state refs
-  const isAwakeRef = useRef(false);
   const isProcessingRef = useRef(false);
-  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isAwakeRef = useRef(false);
   const awakeExpireTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const accumulatedCommandRef = useRef<string>("");
 
-  // Groq Whisper MediaRecorder refs
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const activeStreamRef = useRef<MediaStream | null>(null);
+  // Groq Whisper Hands-Free VAD refs
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const vadIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isVadActiveRef = useRef(false);
 
   const router = useRouter();
+
+  // Helper for MIME type support across all browsers (Chrome, Brave, Firefox, Safari)
+  const getSupportedMimeType = () => {
+    if (typeof window === "undefined" || typeof MediaRecorder === "undefined") return "";
+    const types = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/mp4",
+      "audio/aac",
+    ];
+    for (const t of types) {
+      if (MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return "";
+  };
+
+  // Transcribe audio using backend Groq Whisper Large V3
+  const transcribeWithGroq = async (audioBlob: Blob): Promise<string> => {
+    try {
+      const formData = new FormData();
+      formData.append("audio", audioBlob, "recording.webm");
+      const res = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/user/transcribe`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+          withCredentials: true,
+        }
+      );
+      return (res.data?.text || "").trim();
+    } catch (err: any) {
+      console.warn("[Groq Whisper STT] Error:", err.response?.data || err.message || err);
+      return "";
+    }
+  };
 
   // Talk With AI
   const getGeminiResponse = async (command: string) => {
@@ -109,52 +115,19 @@ const Mainpage = () => {
     }
   };
 
-  // ---------- Safe Recognition ----------
-  const safeRecognition = (delay = 800) => {
-    if (restartTimeout.current) clearTimeout(restartTimeout.current);
-    restartTimeout.current = setTimeout(() => {
-      if (
-        !isSpeakingRef.current &&
-        !isProcessingRef.current &&
-        !isRecognizingRef.current &&
-        !isRecordingGroq &&
-        recognitionRef.current
-      ) {
-        try {
-          recognitionRef.current.start();
-          console.log("[Recognition] Restarted successfully");
-        } catch (error: any) {
-          if (error.name !== "InvalidStateError") {
-            console.warn("[Recognition] Start warning:", error.message || error);
-          }
-        }
-      }
-    }, delay);
-  };
-
-  // Trigger command processing after silence or transcription
+  // Trigger command processing
   const executeCommand = async (commandToSend: string) => {
     if (!commandToSend.trim() || isProcessingRef.current || isSpeakingRef.current) return;
 
-    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     if (awakeExpireTimeoutRef.current) clearTimeout(awakeExpireTimeoutRef.current);
 
     isAwakeRef.current = false;
     isProcessingRef.current = true;
-    accumulatedCommandRef.current = "";
-
-    try {
-      if (recognitionRef.current && isRecognizingRef.current) {
-        recognitionRef.current.stop();
-        isRecognizingRef.current = false;
-        setListening(false);
-      }
-    } catch {}
 
     setAiText("");
     setUserText(commandToSend);
 
-    console.log("[Voice Execution] Sending command:", commandToSend);
+    console.log("[Groq Voice Execution] Sending command:", commandToSend);
     const data = await getGeminiResponse(commandToSend);
     console.log("[Assistant Response]:", data);
 
@@ -164,152 +137,154 @@ const Mainpage = () => {
     } else {
       isProcessingRef.current = false;
       setUserText("");
-      safeRecognition(500);
     }
   };
 
-  // ----------------- Groq Whisper Universal Audio Recorder -----------------
-  const getSupportedMimeType = () => {
-    if (typeof window === "undefined" || typeof MediaRecorder === "undefined") return "";
-    const types = [
-      "audio/webm;codecs=opus",
-      "audio/webm",
-      "audio/ogg;codecs=opus",
-      "audio/mp4",
-      "audio/aac",
-    ];
-    for (const t of types) {
-      if (MediaRecorder.isTypeSupported(t)) return t;
+  // Handle transcribed speech from Groq Whisper
+  const handleHandsFreeTranscript = (transcript: string) => {
+    if (!transcript || isSpeakingRef.current || isProcessingRef.current) return;
+
+    const assistantName = (user?.assistantName || "").trim().toLowerCase();
+    const escapedHotword = assistantName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const hotwordRegex = escapedHotword ? new RegExp(`\\b${escapedHotword}\\b`, "i") : null;
+
+    if (hotwordRegex && hotwordRegex.test(transcript)) {
+      // Wake word detected!
+      const command = transcript.replace(hotwordRegex, "").trim();
+      if (!command) {
+        // User said only the assistant's name (e.g. "Echo")
+        setUserText("Listening...");
+        isAwakeRef.current = true;
+        if (awakeExpireTimeoutRef.current) clearTimeout(awakeExpireTimeoutRef.current);
+        awakeExpireTimeoutRef.current = setTimeout(() => {
+          isAwakeRef.current = false;
+          setUserText("");
+        }, 7000);
+      } else {
+        // User spoke the name and the command together (e.g. "Echo what is the weather today")
+        setUserText(command);
+        executeCommand(command);
+      }
+    } else if (isAwakeRef.current) {
+      // Already awake from previous turn
+      isAwakeRef.current = false;
+      setUserText(transcript);
+      executeCommand(transcript);
     }
-    return "";
   };
 
-  const startGroqRecording = async () => {
-    if (isSpeakingRef.current || isProcessingRef.current) return;
-
+  // Continuous Hands-Free Groq Whisper Listener (100% universal across Chrome, Brave, Firefox, Safari)
+  const startHandsFreeVadListener = async () => {
+    if (isVadActiveRef.current) return;
     try {
-      // Pause browser speech recognition if running
-      if (recognitionRef.current && isRecognizingRef.current) {
-        try {
-          recognitionRef.current.stop();
-          isRecognizingRef.current = false;
-          setListening(false);
-        } catch {}
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      isVadActiveRef.current = true;
+      setListening(true);
+      console.log("[Hands-Free] Universal Groq Whisper voice listening active");
+
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const audioCtx = new AudioCtx();
+      audioContextRef.current = audioCtx;
+
+      // Resume audio context on first interaction if browser started it in suspended state
+      if (audioCtx.state === "suspended") {
+        const resumeAudio = () => {
+          audioCtx.resume();
+          window.removeEventListener("click", resumeAudio);
+        };
+        window.addEventListener("click", resumeAudio, { once: true });
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      activeStreamRef.current = stream;
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
 
       const mimeType = getSupportedMimeType();
-      const options = mimeType ? { mimeType } : undefined;
-      const mediaRecorder = new MediaRecorder(stream, options);
+      let mediaRecorder: MediaRecorder | null = null;
+      let chunks: Blob[] = [];
+      let isRecordingVoice = false;
+      let silenceTimer: NodeJS.Timeout | null = null;
 
-      audioChunksRef.current = [];
-      mediaRecorderRef.current = mediaRecorder;
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
+      const checkVolume = () => {
+        if (!isVadActiveRef.current) return;
+        analyser.getByteFrequencyData(dataArray);
+
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
         }
-      };
+        const avg = sum / dataArray.length;
 
-      mediaRecorder.onstop = async () => {
-        setIsRecordingGroq(false);
-        if (recordingTimeoutRef.current) clearTimeout(recordingTimeoutRef.current);
-
-        // Stop all audio tracks to release microphone
-        if (activeStreamRef.current) {
-          activeStreamRef.current.getTracks().forEach((track) => track.stop());
-          activeStreamRef.current = null;
-        }
-
-        const audioBlob = new Blob(audioChunksRef.current, {
-          type: mimeType || "audio/webm",
-        });
-
-        if (audioBlob.size < 1000) {
-          setUserText("");
-          safeRecognition(500);
-          return;
-        }
-
-        setUserText("⚡ Transcribing with Groq Whisper...");
-
-        try {
-          const formData = new FormData();
-          formData.append("audio", audioBlob, "recording.webm");
-
-          const response = await axios.post(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/user/transcribe`,
-            formData,
-            {
-              headers: { "Content-Type": "multipart/form-data" },
-              withCredentials: true,
+        // Only listen when assistant is NOT speaking and NOT processing
+        if (!isSpeakingRef.current && !isProcessingRef.current) {
+          if (avg > 14) {
+            // Voice detected
+            if (!isRecordingVoice) {
+              isRecordingVoice = true;
+              chunks = [];
+              mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+              mediaRecorder.ondataavailable = (e) => {
+                if (e.data && e.data.size > 0) chunks.push(e.data);
+              };
+              mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(chunks, { type: mimeType || "audio/webm" });
+                if (audioBlob.size > 2000 && !isSpeakingRef.current && !isProcessingRef.current) {
+                  setUserText("Listening...");
+                  const transcript = await transcribeWithGroq(audioBlob);
+                  if (transcript) {
+                    handleHandsFreeTranscript(transcript);
+                  } else {
+                    setUserText("");
+                  }
+                }
+              };
+              mediaRecorder.start(100);
             }
-          );
 
-          const transcribed = (response.data?.text || "").trim();
-          if (transcribed) {
-            console.log("[Groq Whisper Transcription]:", transcribed);
-            executeCommand(transcribed);
-          } else {
-            setUserText("Could not understand audio. Try again!");
-            setTimeout(() => setUserText(""), 2000);
-            safeRecognition(500);
+            // Reset silence timeout on speech
+            if (silenceTimer) clearTimeout(silenceTimer);
+            silenceTimer = setTimeout(() => {
+              if (isRecordingVoice && mediaRecorder && mediaRecorder.state !== "inactive") {
+                isRecordingVoice = false;
+                mediaRecorder.stop();
+              }
+            }, 1100);
           }
-        } catch (err: any) {
-          console.error("Groq Transcription failed:", err);
-          setUserText("Transcription error. Please try again.");
-          setTimeout(() => setUserText(""), 2500);
-          safeRecognition(500);
+        } else {
+          if (isRecordingVoice && mediaRecorder && mediaRecorder.state !== "inactive") {
+            isRecordingVoice = false;
+            mediaRecorder.stop();
+          }
         }
       };
 
-      mediaRecorder.start(250);
-      setIsRecordingGroq(true);
-      setUserText("🔴 Listening via Groq Whisper... (click to stop)");
-
-      // Auto-stop after 10 seconds max if user doesn't tap
-      recordingTimeoutRef.current = setTimeout(() => {
-        stopGroqRecording();
-      }, 10000);
-    } catch (err: any) {
-      console.error("Microphone access denied or error:", err);
-      setUserText("Microphone permission required!");
-      setTimeout(() => setUserText(""), 3000);
+      const intervalId = setInterval(checkVolume, 75);
+      vadIntervalRef.current = intervalId;
+    } catch (err) {
+      console.warn("[Hands-Free] Microphone access or AudioContext notice:", err);
     }
   };
 
-  const stopGroqRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      try {
-        mediaRecorderRef.current.stop();
-      } catch {}
+  // Manual wake-up if user taps the orb
+  const wakeUpAssistant = () => {
+    if (isSpeakingRef.current || isProcessingRef.current) return;
+    if (!isVadActiveRef.current) {
+      startHandsFreeVadListener();
     }
-  };
-
-  const toggleVoiceMode = () => {
-    if (isRecordingGroq) {
-      stopGroqRecording();
-    } else {
-      startGroqRecording();
-    }
-  };
-
-  // Keyboard shortcut: Spacebar to toggle voice when not in text input
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === "Space" && e.target instanceof HTMLElement) {
-        const tagName = e.target.tagName.toLowerCase();
-        if (tagName !== "input" && tagName !== "textarea" && !chatOpen) {
-          e.preventDefault();
-          toggleVoiceMode();
-        }
+    isAwakeRef.current = true;
+    setUserText("Listening...");
+    if (awakeExpireTimeoutRef.current) clearTimeout(awakeExpireTimeoutRef.current);
+    awakeExpireTimeoutRef.current = setTimeout(() => {
+      if (isAwakeRef.current) {
+        isAwakeRef.current = false;
+        setUserText("");
       }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isRecordingGroq, chatOpen]);
+    }, 7000);
+  };
 
   // ---------- Fetch User ----------
   useEffect(() => {
@@ -329,197 +304,48 @@ const Mainpage = () => {
     fetchUser();
   }, []);
 
-  // ---------- Speech Recognition ----------
+  // ---------- Initialize Universal Hands-Free Groq Whisper ----------
   useEffect(() => {
     if (!user) return;
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      console.warn("Speech recognition is not supported in this browser.");
-      return;
-    }
-
-    const recognition: any = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true; // Stream words in real-time
-
-    // Match language to selected model
-    if (user.assistantImage === "/model2.png") {
-      recognition.lang = "hi-IN";
-    } else if (user.assistantImage === "/model3.jpg") {
-      recognition.lang = "en-GB";
-    } else {
-      recognition.lang = "en-US";
-    }
-
-    recognitionRef.current = recognition;
-    (window as any).speechRecognitionInstance = recognition;
-
-    recognition.onstart = () => {
-      console.log("[Recognition] Started in language:", recognition.lang);
-      isRecognizingRef.current = true;
-      setListening(true);
-    };
-
-    recognition.onend = () => {
-      console.log("[Recognition] Ended");
-      isRecognizingRef.current = false;
-      setListening(false);
-
-      if (!isSpeakingRef.current && !isProcessingRef.current) {
-        safeRecognition(600);
-      }
-    };
-
-    recognition.onerror = (e: any) => {
-      console.warn("[Recognition] Error:", e.error);
-      isRecognizingRef.current = false;
-      setListening(false);
-      if (e.error !== "aborted" && !isSpeakingRef.current && !isProcessingRef.current) {
-        errorCountRef.current++;
-        const backoff = Math.min(4000, 800 * errorCountRef.current);
-        safeRecognition(backoff);
-      }
-    };
-
-    recognition.onresult = async (e: any) => {
-      if (isSpeakingRef.current || isProcessingRef.current) {
-        return;
-      }
-
-      let interimTranscript = "";
-      let finalTranscript = "";
-
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const item = e.results[i];
-        if (item.isFinal) {
-          finalTranscript += item[0].transcript + " ";
-        } else {
-          interimTranscript += item[0].transcript;
-        }
-      }
-
-      const rawTranscript = (finalTranscript || interimTranscript).trim();
-      if (!rawTranscript) return;
-
-      const lowerTranscript = rawTranscript.toLowerCase();
-      console.log("[Recognition] Heard:", rawTranscript);
-
-      // Safe hotword regex escape
-      const assistantName = (user.assistantName || "").trim().toLowerCase();
-      const escapedHotword = assistantName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const hotwordRegex = escapedHotword ? new RegExp(`\\b${escapedHotword}\\b`, "i") : null;
-
-      // Check if user says the hotword
-      const containsHotword = hotwordRegex ? hotwordRegex.test(lowerTranscript) : false;
-
-      if (!isAwakeRef.current) {
-        // Not awake yet: check for wake word
-        if (containsHotword) {
-          console.log("[Wake Word Detected]:", assistantName);
-          isAwakeRef.current = true;
-
-          // Extract text spoken after the assistant's name
-          let commandAfterName = rawTranscript;
-          if (hotwordRegex) {
-            commandAfterName = rawTranscript.replace(hotwordRegex, "").trim();
-          }
-
-          if (commandAfterName.length > 0) {
-            // User spoke both the name AND command together (e.g. "Echo what is the weather")
-            accumulatedCommandRef.current = commandAfterName;
-            setUserText(commandAfterName);
-
-            // Wait 1.3s for user to finish speaking, then execute
-            if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-            silenceTimeoutRef.current = setTimeout(() => {
-              executeCommand(accumulatedCommandRef.current);
-            }, 1300);
-          } else {
-            // User just said the name (e.g. "Echo")
-            setUserText("Listening...");
-            accumulatedCommandRef.current = "";
-
-            // Keep listening for command for up to 7 seconds
-            if (awakeExpireTimeoutRef.current) clearTimeout(awakeExpireTimeoutRef.current);
-            awakeExpireTimeoutRef.current = setTimeout(() => {
-              if (isAwakeRef.current && !accumulatedCommandRef.current) {
-                console.log("[Wake timeout] No command heard, sleeping");
-                isAwakeRef.current = false;
-                setUserText("");
-              }
-            }, 7000);
-          }
-        }
-      } else {
-        // Already awake: capture full speech as the command
-        let cleanCommand = rawTranscript;
-        if (hotwordRegex) {
-          cleanCommand = rawTranscript.replace(hotwordRegex, "").trim() || rawTranscript;
-        }
-
-        if (cleanCommand.length > 0) {
-          accumulatedCommandRef.current = cleanCommand;
-          setUserText(cleanCommand);
-
-          // Reset awake expiration since user is actively speaking
-          if (awakeExpireTimeoutRef.current) clearTimeout(awakeExpireTimeoutRef.current);
-
-          // Wait 1.3s of silence before sending the complete sentence
-          if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-          silenceTimeoutRef.current = setTimeout(() => {
-            executeCommand(accumulatedCommandRef.current);
-          }, 1300);
-        }
-      }
-    };
-
-    const fallBackCheck = setInterval(() => {
-      if (!isSpeakingRef.current && !isProcessingRef.current && !isRecognizingRef.current) {
-        safeRecognition(500);
-      }
-    }, 8000);
-
-    safeRecognition(500);
+    startHandsFreeVadListener();
 
     return () => {
-      try {
-        recognition.stop();
-      } catch {}
+      isVadActiveRef.current = false;
+      if (vadIntervalRef.current) clearInterval(vadIntervalRef.current);
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (audioContextRef.current) {
+        try {
+          audioContextRef.current.close();
+        } catch {}
+      }
       setListening(false);
-      isRecognizingRef.current = false;
-      if (restartTimeout.current) clearTimeout(restartTimeout.current);
-      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
       if (awakeExpireTimeoutRef.current) clearTimeout(awakeExpireTimeoutRef.current);
-      clearInterval(fallBackCheck);
     };
   }, [user]);
 
   // ---------- Handle Commands ----------
   const handleQuery = (data: any) => {
     const { type = "general", userInput = "", response = "" } = data || {};
-    lastSpokenRef.current = response.toLowerCase();
 
     const onSpeechFinish = () => {
       setAiText("");
       setUserText("");
       isProcessingRef.current = false;
-      safeRecognition(400);
     };
 
     if (!chatOpen && response) {
       switch (user.assistantImage) {
         case "/model1.jpg":
-          modelOneSpeak(response, isSpeakingRef, () => safeRecognition(), onSpeechFinish);
+          modelOneSpeak(response, isSpeakingRef, undefined, onSpeechFinish);
           break;
         case "/model2.png":
-          modelTwoSpeak(response, isSpeakingRef, () => safeRecognition(), onSpeechFinish);
+          modelTwoSpeak(response, isSpeakingRef, undefined, onSpeechFinish);
           break;
         case "/model3.jpg":
-          modelThreeSpeak(response, isSpeakingRef, () => safeRecognition(), onSpeechFinish);
+          modelThreeSpeak(response, isSpeakingRef, undefined, onSpeechFinish);
           break;
         default:
           onSpeechFinish();
@@ -529,7 +355,7 @@ const Mainpage = () => {
       onSpeechFinish();
     }
 
-    // Example: open URLs
+    // Actions
     switch (type) {
       case "google-search":
         window.open(
@@ -549,8 +375,6 @@ const Mainpage = () => {
       case "weather-show":
         window.open(`https://www.google.com/search?q=weather`, "_blank");
         break;
-
-      // Addingg thhhis later on
       case "wikipedia-search":
         window.open(
           `https://en.wikipedia.org/wiki/${encodeURIComponent(userInput)}`,
@@ -571,8 +395,6 @@ const Mainpage = () => {
           "_blank"
         );
         break;
-
-      // need to limit reddit to not search for adult content when comand is passed
       case "reddit-search":
         window.open(
           `https://www.reddit.com/search/?q=${encodeURIComponent(userInput)}`,
@@ -607,11 +429,6 @@ const Mainpage = () => {
       case "gmail-open":
         window.open(`https://mail.google.com/`, "_blank");
         break;
-      //
-      //
-      //
-      //
-
       case "open-blackboard":
         router.push("/BlackBoard");
         break;
@@ -634,21 +451,21 @@ const Mainpage = () => {
         return (
           <ModelOne
             isSpeakingRef={isSpeakingRef}
-            startRecognition={() => safeRecognition()}
+            startRecognition={() => {}}
           />
         );
       case "/model2.png":
         return (
           <ModelTwo
             isSpeakingRef={isSpeakingRef}
-            startRecognition={() => safeRecognition()}
+            startRecognition={() => {}}
           />
         );
       case "/model3.jpg":
         return (
           <ModelThree
             isSpeakingRef={isSpeakingRef}
-            startRecognition={() => safeRecognition()}
+            startRecognition={() => {}}
           />
         );
       default:
@@ -733,12 +550,12 @@ const Mainpage = () => {
           Welcome, <span className="text-indigo-400">{user.name}</span>
         </h2>
 
-        <p className="text-gray-400 text-base mb-3">
+        <p className="text-gray-400 text-base mb-4">
           Say{" "}
           <span className="text-indigo-400 font-semibold">
             {user.assistantName}
           </span>{" "}
-          or tap the mic / press <kbd className="px-2 py-0.5 text-xs bg-gray-800 border border-gray-700 rounded text-gray-300">Space</kbd> to talk.
+          to wake me up.
         </p>
 
         {renderModel()}
@@ -751,20 +568,16 @@ const Mainpage = () => {
         )}
 
         <div className="flex flex-col items-center gap-2 mt-4">
-          <button
-            onClick={toggleVoiceMode}
-            title={isRecordingGroq ? "Click to finish speaking" : "Click to speak with Groq Whisper"}
-            className={`group relative flex items-center justify-center p-2 rounded-full transition-all duration-300 ${
-              isRecordingGroq
-                ? "ring-4 ring-red-500/80 scale-105 shadow-[0_0_30px_rgba(239,68,68,0.5)]"
-                : "hover:scale-105 active:scale-95"
-            } focus:outline-none`}
+          <div
+            onClick={wakeUpAssistant}
+            title="Click to activate voice listening"
+            className="group relative flex items-center justify-center p-2 rounded-full transition-transform hover:scale-105 active:scale-95 focus:outline-none cursor-pointer"
           >
             {!aiText && (
               <img
                 src="/userVoice.gif"
                 alt="Voice listening wave"
-                className="w-[180px] drop-shadow-[0_0_15px_rgba(99,102,241,0.3)] cursor-pointer"
+                className="w-[180px] drop-shadow-[0_0_15px_rgba(99,102,241,0.3)]"
               />
             )}
             {aiText && (
@@ -774,35 +587,12 @@ const Mainpage = () => {
                 className="w-[180px] drop-shadow-[0_0_20px_rgba(168,85,247,0.4)]"
               />
             )}
-            <div
-              className={`absolute bottom-1 right-1 p-2.5 rounded-full text-white shadow-md transition ${
-                isRecordingGroq
-                  ? "bg-red-600 animate-bounce shadow-red-500/50"
-                  : listening
-                  ? "bg-indigo-600 hover:bg-indigo-500"
-                  : "bg-gray-700 hover:bg-gray-600"
-              }`}
-            >
-              {isRecordingGroq ? (
-                <Mic className="size-4 animate-pulse text-white" />
-              ) : listening ? (
-                <Mic className="size-4 animate-pulse text-white" />
-              ) : (
-                <MicOff className="size-4 text-gray-300" />
-              )}
+            <div className="absolute bottom-1 right-1 p-2 rounded-full bg-indigo-600/80 hover:bg-indigo-500 text-white shadow-md transition">
+              {listening ? <Mic className="size-4 animate-pulse" /> : <MicOff className="size-4 text-gray-300" />}
             </div>
-          </button>
-          {isRecordingGroq && (
-            <span className="text-xs text-red-400 font-medium animate-pulse">
-              🔴 Recording with Groq Whisper (tap again or space to send)
-            </span>
-          )}
+          </div>
         </div>
       </main>
-
-      {/* <footer className="text-center py-4 border-t border-gray-800 text-sm text-gray-500">
-        Built with ❤️ for you
-      </footer> */}
 
       <BubbleMenu
         logo={<span style={{ fontWeight: 700 }}>RB</span>}

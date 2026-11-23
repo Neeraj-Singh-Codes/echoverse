@@ -142,12 +142,14 @@ export const transcribeAudio = async (req, res) => {
     }
 
     const apiKey = process.env.GROQ_API_KEY;
+
     if (!apiKey) {
       return res.status(500).json({ message: "GROQ_API_KEY is not configured" });
     }
 
     const formData = new FormData();
-    const fileBlob = new Blob([req.file.buffer], {
+    const uint8Array = new Uint8Array(req.file.buffer);
+    const fileBlob = new Blob([uint8Array], {
       type: req.file.mimetype || "audio/webm",
     });
     formData.append("file", fileBlob, "recording.webm");
